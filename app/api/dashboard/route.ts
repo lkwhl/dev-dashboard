@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const [issues, prs, emails] = await Promise.allSettled([
       fetchMyJiraIssues(),
       fetchMyBitbucketPRs(),
-      isAuthorized() ? fetchRecentEmails() : Promise.resolve([]),
+      isAuthorized(req) ? fetchRecentEmails(req) : Promise.resolve([]),
     ]);
 
     const jiraIssues = issues.status === "fulfilled" ? issues.value : [];
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       issues: jiraIssues,
       prs: bitbucketPRs,
       emails: gmailMessages,
-      gmailAuthorized: isAuthorized(),
+      gmailAuthorized: isAuthorized(req),
       summary,
       errors: { jira: jiraError, bitbucket: bitbucketError, gmail: gmailError, ai: aiError },
       generatedAt: new Date().toISOString(),

@@ -9,7 +9,9 @@ export async function GET(req: NextRequest) {
 
   const client = getOAuthClient();
   const { tokens } = await client.getToken(code);
-  saveTokens(tokens);
 
-  return NextResponse.redirect(new URL("/", req.url));
+  const response = NextResponse.redirect(new URL("/", req.url));
+  saveTokens(tokens, response);
+
+  return response;
 }
