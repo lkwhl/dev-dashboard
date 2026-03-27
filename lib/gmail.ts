@@ -20,6 +20,15 @@ export function getOAuthClient() {
   );
 }
 
+export function getAuthUrl() {
+  const client = getOAuthClient();
+  return client.generateAuthUrl({
+    access_type: "offline",
+    prompt: "consent",
+    scope: ["https://www.googleapis.com/auth/gmail.readonly"],
+  });
+}
+
 export function loadTokens(req: NextRequest): object | null {
   const cookie = req.cookies.get(COOKIE_NAME);
   if (!cookie) return null;
