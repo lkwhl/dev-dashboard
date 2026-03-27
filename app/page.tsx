@@ -111,7 +111,7 @@ function IssueRow({ issue }: { issue: JiraIssue }) {
   return (
     <a href={issue.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
       <div style={{
-        display: "flex", alignItems: "flex-start", gap: "12px", padding: "12px 0",
+        display: "flex", alignItems: "flex-start", gap: "12px",
         borderBottom: "1px solid var(--border)", cursor: "pointer",
         transition: "opacity 0.15s",
         background: needsSoftdeskFollowup ? "rgba(212, 135, 10, 0.05)" : "transparent",
