@@ -58,8 +58,11 @@ Then fill in your credentials in `.env.local`:
 1. Go to https://console.cloud.google.com
 2. Create a project → Enable the **Gmail API**
 3. Create **OAuth 2.0 credentials** (Web application)
-4. Add `http://localhost:3002/api/auth/google/callback` as an authorized redirect URI
+4. Add the redirect URIs in the Google Console:
+   - Local: `http://localhost:3002/api/auth/google/callback`
+   - Production: `https://dev-dashboard-xi.vercel.app/api/auth/google/callback`
 5. Set:
+   - `NEXTAUTH_URL=http://localhost:3002` (locally) or `https://dev-dashboard-xi.vercel.app` (production)
    - `GOOGLE_CLIENT_ID=your_client_id`
    - `GOOGLE_CLIENT_SECRET=your_client_secret`
 6. After running the app, visit `/api/auth/google` once to authorize Gmail access
@@ -92,6 +95,7 @@ vercel env add JIRA_EMAIL
 vercel env add JIRA_API_TOKEN
 vercel env add BITBUCKET_WORKSPACE
 vercel env add BITBUCKET_API_TOKEN
+vercel env add NEXTAUTH_URL
 vercel env add GOOGLE_CLIENT_ID
 vercel env add GOOGLE_CLIENT_SECRET
 ```
