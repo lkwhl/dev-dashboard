@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { JiraIssue } from "@/lib/jira";
 import { BitbucketPR } from "@/lib/bitbucket";
 import { AISummary } from "@/lib/ai";
@@ -8,8 +8,20 @@ import { GmailMessage } from "@/lib/gmail";
 import {
   RefreshCw, GitPullRequest, AlertCircle, Clock, CheckCircle2,
   Zap, MessageSquare, ChevronRight, ExternalLink, Loader2,
-  AlertTriangle, Star, Eye, Code2, Calendar, Send, Bell, Mail
+  AlertTriangle, Star, Eye, Code2, Calendar, Send, Bell, Mail,
+  GitCommit
 } from "lucide-react";
+
+interface Commit {
+  hash: string;
+  date: string;
+  dateStr: string;
+  message: string;
+  repo: string;
+  repoSlug: string;
+  url: string;
+  jiraKeys: string[];
+}
 
 interface DashboardData {
   issues: JiraIssue[];
@@ -241,6 +253,356 @@ function SummaryItem({ icon, text, color, issueMap, onDismiss, isDismissed }: {
   );
 }
 
+const MONTHS_SHORT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
+  const currentYear = new Date().getFullYear();
+  const [year, setYear] = useState(currentYear);
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [hours, setHours] = useState<Record<string, number>>({});
+  const [inputHours, setInputHours] = useState<string>("");
+  const [commits, setCommits] = useState<Commit[]>([]);
+  const [commitsLoading, setCommitsLoading] = useState(true);
+
+  // Load saved hours from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("working_hours");
+      if (stored) setHours(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+
+  // Sync input field when selected date changes
+  useEffect(() => {
+    setInputHours(hours[selectedDate] !== undefined ? String(hours[selectedDate]) : "");
+  }, [selectedDate, hours]);
+
+  // Fetch commits for the selected year
+  useEffect(() => {
+    setCommitsLoading(true);
+    setCommits([]);
+    fetch(`/api/commits?year=${year}`)
+      .then(r => r.json())
+      .then(d => setCommits(d.commits ?? []))
+      .catch(() => {})
+      .finally(() => setCommitsLoading(false));
+  }, [year]);
+
+  const saveHours = (date: string, val: number) => {
+    const next = { ...hours, [date]: val };
+    setHours(next);
+    localStorage.setItem("working_hours", JSON.stringify(next));
+  };
+
+  const commitsByDate = useMemo(() => {
+    const map: Record<string, Commit[]> = {};
+    for (const c of commits) {
+      if (!map[c.dateStr]) map[c.dateStr] = [];
+      map[c.dateStr].push(c);
+    }
+    return map;
+  }, [commits]);
+
+  // PRs authored by the user, grouped by the date they were last updated
+  const prsByDate = useMemo(() => {
+    const map: Record<string, BitbucketPR[]> = {};
+    for (const pr of prs) {
+      if (!pr.isAuthor) continue;
+      const dateStr = (pr.updatedOn ?? "").slice(0, 10);
+      if (!dateStr) continue;
+      if (!map[dateStr]) map[dateStr] = [];
+      map[dateStr].push(pr);
+    }
+    return map;
+  }, [prs]);
+
+  const totalHoursYear = useMemo(() =>
+    Object.entries(hours)
+      .filter(([d]) => d.startsWith(String(year)))
+      .reduce((sum, [, h]) => sum + h, 0),
+    [hours, year]
+  );
+
+  const getDaysInMonth = (month: number) => new Date(year, month + 1, 0).getDate();
+
+  const getCellBg = (dateStr: string) => {
+    const h = hours[dateStr];
+    if (h === undefined || h === 0) return "var(--bg)";
+    if (h <= 4) return "#6af7a230";
+    if (h <= 7) return "#6af7a260";
+    return "#6af7a290";
+  };
+
+  const getCellBorder = (dateStr: string) => {
+    if (dateStr === selectedDate) return "var(--accent)";
+    const hasCommits = (commitsByDate[dateStr]?.length ?? 0) > 0;
+    const hasHours = hours[dateStr] !== undefined && hours[dateStr] > 0;
+    if (hasCommits && !hasHours) return "var(--warn)";
+    return "var(--border)";
+  };
+
+  const selectedCommits = commitsByDate[selectedDate] ?? [];
+  const selectedPRs = prsByDate[selectedDate] ?? [];
+
+  return (
+    <div style={{ padding: "20px 32px 40px" }}>
+      {/* Year nav + summary */}
+      <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ color: "var(--accent)", display: "flex" }}><Clock size={15} /></span>
+          <span style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Working Hours</span>
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "12px" }}>
+          {totalHoursYear > 0 && (
+            <span style={{ fontSize: "13px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
+              <span style={{ color: "var(--accent-3)", fontWeight: 700 }}>{totalHoursYear}h</span> em {year}
+            </span>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <button
+              onClick={() => setYear(y => y - 1)}
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "4px 10px", cursor: "pointer", color: "var(--text-muted)", fontSize: "12px", fontFamily: "'DM Mono', monospace" }}
+            >
+              ← {year - 1}
+            </button>
+            <span style={{ fontWeight: 800, fontSize: "16px", minWidth: "48px", textAlign: "center" }}>{year}</span>
+            {year < currentYear && (
+              <button
+                onClick={() => setYear(y => y + 1)}
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "4px 10px", cursor: "pointer", color: "var(--text-muted)", fontSize: "12px", fontFamily: "'DM Mono', monospace" }}
+              >
+                {year + 1} →
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Calendar + detail grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: "20px", alignItems: "start" }}>
+        {/* Year calendar */}
+        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px" }}>
+          {commitsLoading && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-muted)", fontSize: "12px", fontFamily: "'DM Mono', monospace", marginBottom: "14px" }}>
+              <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
+              Carregando commits do Bitbucket...
+            </div>
+          )}
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", minWidth: "100%" }}>
+              <thead>
+                <tr>
+                  <th style={{ width: "40px" }} />
+                  {Array.from({ length: 31 }, (_, i) => (
+                    <th key={i} style={{ textAlign: "center", fontSize: "9px", color: "var(--text-dim)", fontFamily: "'DM Mono', monospace", padding: "0 1px 8px", width: "24px", minWidth: "24px" }}>
+                      {i + 1}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 12 }, (_, month) => {
+                  const daysInMonth = getDaysInMonth(month);
+                  return (
+                    <tr key={month}>
+                      <td style={{ fontSize: "10px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", paddingRight: "8px", paddingBottom: "3px", verticalAlign: "middle" }}>
+                        {MONTHS_SHORT[month]}
+                      </td>
+                      {Array.from({ length: 31 }, (_, day) => {
+                        if (day >= daysInMonth) return <td key={day} style={{ padding: "1px" }} />;
+
+                        const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day + 1).padStart(2, "0")}`;
+                        const isSelected = dateStr === selectedDate;
+                        const hasCommits = (commitsByDate[dateStr]?.length ?? 0) > 0;
+                        const hasHours = hours[dateStr] !== undefined && hours[dateStr] > 0;
+                        const hoursVal = hours[dateStr] ?? 0;
+
+                        return (
+                          <td key={day} style={{ padding: "1px" }}>
+                            <div
+                              onClick={() => setSelectedDate(dateStr)}
+                              title={`${dateStr}${hoursVal ? ` · ${hoursVal}h` : ""}${hasCommits ? ` · ${commitsByDate[dateStr].length} commits` : ""}`}
+                              style={{
+                                width: "22px", height: "22px", borderRadius: "4px",
+                                background: getCellBg(dateStr),
+                                border: `1px solid ${getCellBorder(dateStr)}`,
+                                cursor: "pointer", position: "relative",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                boxShadow: isSelected ? "0 0 0 2px var(--accent)40" : "none",
+                                transition: "opacity 0.1s",
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.opacity = "0.8")}
+                              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                            >
+                              {hasHours && (
+                                <span style={{ fontSize: "8px", fontFamily: "'DM Mono', monospace", color: "var(--text)", fontWeight: 700, lineHeight: 1, userSelect: "none" }}>
+                                  {hoursVal}
+                                </span>
+                              )}
+                              {hasCommits && (
+                                <div style={{
+                                  position: "absolute", bottom: "2px", right: "2px",
+                                  width: "3px", height: "3px", borderRadius: "50%",
+                                  background: hasHours ? "var(--accent)" : "var(--warn)",
+                                }} />
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Legend */}
+          <div style={{ display: "flex", gap: "14px", marginTop: "14px", paddingTop: "12px", borderTop: "1px solid var(--border)", flexWrap: "wrap" }}>
+            {[
+              { bg: "var(--bg)", border: "var(--border)", label: "Sem registro" },
+              { bg: "var(--bg)", border: "var(--warn)", label: "Commit s/ horas" },
+              { bg: "#6af7a230", border: "var(--border)", label: "1–4h" },
+              { bg: "#6af7a260", border: "var(--border)", label: "5–7h" },
+              { bg: "#6af7a290", border: "var(--border)", label: "8h+" },
+            ].map((item, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "10px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
+                <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: item.bg, border: `1px solid ${item.border}`, flexShrink: 0 }} />
+                {item.label}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Day detail panel */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {/* Hours input */}
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px" }}>
+            <p style={{ fontSize: "10px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "10px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              {new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input
+                type="number"
+                min={0}
+                max={24}
+                step={0.5}
+                value={inputHours}
+                onChange={e => setInputHours(e.target.value)}
+                placeholder="0"
+                style={{
+                  width: "60px", padding: "8px", fontFamily: "'DM Mono', monospace",
+                  fontSize: "22px", fontWeight: 800, background: "var(--bg)",
+                  border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
+                  color: "var(--text)", textAlign: "center",
+                }}
+              />
+              <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>horas</span>
+              <button
+                onClick={() => {
+                  const val = parseFloat(inputHours);
+                  if (!isNaN(val) && val >= 0) saveHours(selectedDate, val);
+                }}
+                style={{
+                  marginLeft: "auto", background: "var(--accent)", color: "#fff",
+                  border: "none", borderRadius: "var(--radius-sm)", padding: "8px 14px",
+                  cursor: "pointer", fontSize: "12px", fontFamily: "'Syne', sans-serif", fontWeight: 700,
+                }}
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+
+          {/* Commits */}
+          {selectedCommits.length > 0 && (
+            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <span style={{ color: "var(--accent)", display: "flex" }}><GitCommit size={13} /></span>
+                <span style={{ fontWeight: 700, fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Commits</span>
+                <span style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border-light)", borderRadius: "20px", padding: "1px 8px", fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
+                  {selectedCommits.length}
+                </span>
+              </div>
+              <div style={{ maxHeight: "280px", overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}>
+                {selectedCommits.map((c) => (
+                  <a key={c.hash} href={c.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                    <div
+                      style={{ borderBottom: "1px solid var(--border)", padding: "8px 0", transition: "opacity 0.15s" }}
+                      onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
+                      onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                    >
+                      <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", alignItems: "center", marginBottom: "4px" }}>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--text-dim)" }}>
+                          {c.hash.slice(0, 7)}
+                        </span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--accent-2)" }}>
+                          {c.repo}
+                        </span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--text-dim)", marginLeft: "auto" }}>
+                          {new Date(c.date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      {c.jiraKeys.length > 0 && (
+                        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "4px" }}>
+                          {c.jiraKeys.map(k => <Badge key={k} text={k} color="var(--accent)" />)}
+                        </div>
+                      )}
+                      <p style={{ fontSize: "12px", color: "var(--text)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } as React.CSSProperties}>
+                        {c.message.split("\n")[0]}
+                      </p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* PRs */}
+          {selectedPRs.length > 0 && (
+            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <span style={{ color: "var(--accent)", display: "flex" }}><GitPullRequest size={13} /></span>
+                <span style={{ fontWeight: 700, fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>PRs</span>
+                <span style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border-light)", borderRadius: "20px", padding: "1px 8px", fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
+                  {selectedPRs.length}
+                </span>
+              </div>
+              {selectedPRs.map(pr => (
+                <a key={`${pr.id}-${pr.repo}`} href={pr.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                  <div
+                    style={{ borderBottom: "1px solid var(--border)", padding: "8px 0", transition: "opacity 0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                  >
+                    <div style={{ display: "flex", gap: "5px", marginBottom: "4px", alignItems: "center" }}>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--accent)" }}>#{pr.id}</span>
+                      <Badge text={pr.state} color={pr.state === "OPEN" ? "var(--accent-3)" : "var(--text-muted)"} />
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--text-dim)", marginLeft: "auto" }}>{pr.repo}</span>
+                    </div>
+                    <p style={{ fontSize: "12px", color: "var(--text)", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {pr.title}
+                    </p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+
+          {selectedCommits.length === 0 && selectedPRs.length === 0 && !commitsLoading && (
+            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px", textAlign: "center" }}>
+              <p style={{ fontSize: "12px", color: "var(--text-dim)" }}>Nenhuma atividade encontrada neste dia</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -251,6 +613,8 @@ export default function Dashboard() {
   const [activeProject, setActiveProject] = useState<string>("all");
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [dismissedItems, setDismissedItems] = useState<Set<string>>(new Set());
+  const [totalCards, setTotalCards] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<"dashboard" | "working-hours">("dashboard");
 
   // Load dismissed items from localStorage, scoped to the current data snapshot
   useEffect(() => {
@@ -298,6 +662,13 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    fetch("/api/total-cards")
+      .then(r => r.json())
+      .then(j => setTotalCards(j.total ?? null))
+      .catch(() => {});
+  }, []);
 
   const handleParseChat = async () => {
     if (!chatInput.trim()) return;
@@ -391,6 +762,32 @@ export default function Dashboard() {
         </button>
       </header>
 
+      {/* Tab navigation */}
+      <div style={{ display: "flex", padding: "0 32px", borderBottom: "1px solid var(--border)" }}>
+        {(["dashboard", "working-hours"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px",
+              padding: "10px 16px", background: "none", border: "none",
+              borderBottom: `2px solid ${activeTab === tab ? "var(--accent)" : "transparent"}`,
+              color: activeTab === tab ? "var(--accent)" : "var(--text-muted)",
+              cursor: "pointer", fontSize: "12px", fontFamily: "'Syne', sans-serif", fontWeight: 700,
+              letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: "-1px",
+              transition: "color 0.15s",
+            }}
+          >
+            {tab === "dashboard" ? <><Code2 size={13} /> Dashboard</> : <><Clock size={13} /> Working Hours</>}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "working-hours" && (
+        <WorkingHoursView prs={data?.prs ?? []} />
+      )}
+
+      {activeTab === "dashboard" && <>
       {error && (
         <div style={{ margin: "16px 32px", padding: "12px 16px", background: "#f76a6a18", border: "1px solid #f76a6a44", borderRadius: "var(--radius-sm)", color: "#f76a6a", fontSize: "13px", fontFamily: "'DM Mono', monospace" }}>
           ⚠ {error}
@@ -401,22 +798,22 @@ export default function Dashboard() {
       {data && (
         <div style={{ display: "flex", gap: "1px", padding: "0 32px", marginTop: "20px" }}>
           {[
-            { label: "Jira Issues", value: data.issues.length, color: "var(--accent)", icon: <CheckCircle2 size={14} /> },
+            { label: "Total Cards", value: totalCards, color: "var(--accent-3)", icon: <CheckCircle2 size={14} /> },
+            { label: "Em aberto", value: data.issues.length, color: "var(--accent)", icon: <CheckCircle2 size={14} /> },
             { label: "Overdue", value: overdueCount, color: "#f76a6a", icon: <AlertCircle size={14} /> },
-            { label: "Total PRs", value: data.prs.length, color: "var(--accent-3)", icon: <GitPullRequest size={14} /> },
-            { label: "Opened", value: data.prs.filter(p => p.state === "OPEN").length, color: "var(--accent)", icon: <Star size={14} /> },
-            { label: "Reviewing", value: data.prs.filter(p => p.isReviewer).length, color: "var(--accent-2)", icon: <Eye size={14} /> },
-          ].map((stat, i) => (
+            { label: "PRs abertos", value: data.prs.filter(p => p.state === "OPEN").length, color: "var(--accent-3)", icon: <GitPullRequest size={14} /> },
+            { label: "Reviewing", value: data.prs.filter(p => p.isReviewer && p.state === "OPEN").length, color: "var(--accent-2)", icon: <Eye size={14} /> },
+          ].map((stat, i, arr) => (
             <div key={i} style={{
               flex: 1, background: "var(--bg-card)", border: "1px solid var(--border)", padding: "16px",
-              borderRadius: i === 0 ? "var(--radius) 0 0 var(--radius)" : i === 4 ? "0 var(--radius) var(--radius) 0" : "0",
+              borderRadius: i === 0 ? "var(--radius) 0 0 var(--radius)" : i === arr.length - 1 ? "0 var(--radius) var(--radius) 0" : "0",
               display: "flex", flexDirection: "column", gap: "6px",
             }}>
               <span style={{ display: "flex", alignItems: "center", gap: "6px", color: stat.color, fontSize: "11px", fontFamily: "'DM Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                 {stat.icon} {stat.label}
               </span>
-              <span style={{ fontSize: "28px", fontWeight: 800, color: stat.value > 0 ? stat.color : "var(--text-dim)" }}>
-                {stat.value}
+              <span style={{ fontSize: "28px", fontWeight: 800, color: (stat.value ?? 0) > 0 ? stat.color : "var(--text-dim)" }}>
+                {stat.value ?? "—"}
               </span>
             </div>
           ))}
@@ -637,16 +1034,16 @@ export default function Dashboard() {
         {/* Right column — PRs */}
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <Card>
-            <SectionTitle icon={<GitPullRequest size={15} />} title="Pull Requests" count={data?.prs.length} />
+            <SectionTitle icon={<GitPullRequest size={15} />} title="PRs Abertos" count={data?.prs.filter(p => p.state === "OPEN").length} />
             {loading ? (
               <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-muted)", padding: "20px 0" }}>
                 <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Loading PRs...
               </div>
-            ) : !data?.prs.length ? (
-              <p style={{ color: "var(--text-dim)", fontSize: "14px", padding: "20px 0", textAlign: "center" }}>No open PRs</p>
+            ) : !data?.prs.filter(p => p.state === "OPEN").length ? (
+              <p style={{ color: "var(--text-dim)", fontSize: "14px", padding: "20px 0", textAlign: "center" }}>Nenhum PR aberto</p>
             ) : (
               <div style={{ maxHeight: "252px", overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}>
-                {data.prs.map((pr) => <PRRow key={`${pr.id}-${pr.repo}`} pr={pr} />)}
+                {data.prs.filter(p => p.state === "OPEN").map((pr) => <PRRow key={`${pr.id}-${pr.repo}`} pr={pr} />)}
               </div>
             )}
           </Card>
@@ -698,6 +1095,8 @@ export default function Dashboard() {
           </Card>
         </div>
       </div>
+
+      </>}
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
