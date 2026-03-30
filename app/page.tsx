@@ -23,6 +23,21 @@ interface Commit {
   jiraKeys: string[];
 }
 
+interface JiraWorklogDay {
+  issueKey: string;
+  issueSummary: string;
+  timeSpentSeconds: number;
+  timeSpent: string;
+  url: string;
+}
+
+interface JiraCardMovement {
+  issueKey: string;
+  issueSummary: string;
+  url: string;
+  movements: { from: string; to: string; time: string }[];
+}
+
 interface DashboardData {
   issues: JiraIssue[];
   prs: BitbucketPR[];
@@ -265,6 +280,10 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
   const [inputHours, setInputHours] = useState<string>("");
   const [commits, setCommits] = useState<Commit[]>([]);
   const [commitsLoading, setCommitsLoading] = useState(true);
+  const [jiraWorklogs, setJiraWorklogs] = useState<JiraWorklogDay[]>([]);
+  const [jiraLoading, setJiraLoading] = useState(false);
+  const [jiraMovements, setJiraMovements] = useState<JiraCardMovement[]>([]);
+  const [movementsLoading, setMovementsLoading] = useState(false);
 
   // Load saved hours from localStorage
   useEffect(() => {
@@ -275,9 +294,17 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
   }, []);
 
   // Sync input field when selected date changes
+  // If no manually saved hours but Jira has worklogs, pre-fill from Jira
   useEffect(() => {
-    setInputHours(hours[selectedDate] !== undefined ? String(hours[selectedDate]) : "");
-  }, [selectedDate, hours]);
+    if (hours[selectedDate] !== undefined) {
+      setInputHours(String(hours[selectedDate]));
+    } else if (jiraWorklogs.length > 0) {
+      const totalSec = jiraWorklogs.reduce((s, w) => s + w.timeSpentSeconds, 0);
+      setInputHours(String(+(totalSec / 3600).toFixed(2)));
+    } else {
+      setInputHours("");
+    }
+  }, [selectedDate, hours, jiraWorklogs]);
 
   // Fetch commits for the selected year
   useEffect(() => {
@@ -289,6 +316,31 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
       .catch(() => {})
       .finally(() => setCommitsLoading(false));
   }, [year]);
+
+  // Fetch Jira worklogs when date changes (only if commits on that day have Jira keys)
+  useEffect(() => {
+    const commitsOnDay = commits.filter(c => c.dateStr === selectedDate);
+    const keys = Array.from(new Set(commitsOnDay.flatMap(c => c.jiraKeys)));
+    if (keys.length === 0) { setJiraWorklogs([]); return; }
+
+    setJiraLoading(true);
+    fetch(`/api/jira-hours?keys=${keys.join(",")}&date=${selectedDate}`)
+      .then(r => r.json())
+      .then(d => setJiraWorklogs(d.worklogs ?? []))
+      .catch(() => setJiraWorklogs([]))
+      .finally(() => setJiraLoading(false));
+  }, [selectedDate, commits]);
+
+  // Fetch Jira card movements (status changes) for the selected date
+  useEffect(() => {
+    setMovementsLoading(true);
+    setJiraMovements([]);
+    fetch(`/api/jira-movements?date=${selectedDate}`)
+      .then(r => r.json())
+      .then(d => setJiraMovements(d.movements ?? []))
+      .catch(() => {})
+      .finally(() => setMovementsLoading(false));
+  }, [selectedDate]);
 
   const saveHours = (date: string, val: number) => {
     const next = { ...hours, [date]: val };
@@ -346,6 +398,19 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
   const selectedCommits = commitsByDate[selectedDate] ?? [];
   const selectedPRs = prsByDate[selectedDate] ?? [];
 
+  const isWeekend = (dateStr: string) => {
+    const d = new Date(dateStr + "T12:00:00").getDay();
+    return d === 0 || d === 6;
+  };
+
+  const jiraTotalSeconds = jiraWorklogs.reduce((s, w) => s + w.timeSpentSeconds, 0);
+  const jiraTotalHours = +(jiraTotalSeconds / 3600).toFixed(2);
+  const hasManualHours = hours[selectedDate] !== undefined;
+
+  const selectedDayDate = new Date(selectedDate + "T12:00:00");
+  const weekdayLong = selectedDayDate.toLocaleDateString("pt-BR", { weekday: "long" });
+  const dateFull = selectedDayDate.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
+
   return (
     <div style={{ padding: "20px 32px 40px" }}>
       {/* Year nav + summary */}
@@ -392,12 +457,12 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
           )}
 
           <div style={{ overflowX: "auto" }}>
-            <table style={{ borderCollapse: "collapse", minWidth: "100%" }}>
+            <table style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
               <thead>
                 <tr>
-                  <th style={{ width: "40px" }} />
+                  <th style={{ width: "36px" }} />
                   {Array.from({ length: 31 }, (_, i) => (
-                    <th key={i} style={{ textAlign: "center", fontSize: "9px", color: "var(--text-dim)", fontFamily: "'DM Mono', monospace", padding: "0 1px 8px", width: "24px", minWidth: "24px" }}>
+                    <th key={i} style={{ width: "24px", textAlign: "center", fontSize: "9px", color: "var(--text-dim)", fontFamily: "'DM Mono', monospace", padding: "0 1px 8px" }}>
                       {i + 1}
                     </th>
                   ))}
@@ -408,26 +473,27 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
                   const daysInMonth = getDaysInMonth(month);
                   return (
                     <tr key={month}>
-                      <td style={{ fontSize: "10px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", paddingRight: "8px", paddingBottom: "3px", verticalAlign: "middle" }}>
+                      <td style={{ width: "36px", fontSize: "10px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", paddingRight: "8px", paddingBottom: "3px", verticalAlign: "middle" }}>
                         {MONTHS_SHORT[month]}
                       </td>
                       {Array.from({ length: 31 }, (_, day) => {
-                        if (day >= daysInMonth) return <td key={day} style={{ padding: "1px" }} />;
+                        if (day >= daysInMonth) return <td key={day} style={{ width: "24px", padding: "1px" }} />;
 
                         const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day + 1).padStart(2, "0")}`;
                         const isSelected = dateStr === selectedDate;
                         const hasCommits = (commitsByDate[dateStr]?.length ?? 0) > 0;
                         const hasHours = hours[dateStr] !== undefined && hours[dateStr] > 0;
                         const hoursVal = hours[dateStr] ?? 0;
+                        const weekend = isWeekend(dateStr);
 
                         return (
-                          <td key={day} style={{ padding: "1px" }}>
+                          <td key={day} style={{ width: "24px", padding: "1px" }}>
                             <div
                               onClick={() => setSelectedDate(dateStr)}
                               title={`${dateStr}${hoursVal ? ` · ${hoursVal}h` : ""}${hasCommits ? ` · ${commitsByDate[dateStr].length} commits` : ""}`}
                               style={{
                                 width: "22px", height: "22px", borderRadius: "4px",
-                                background: getCellBg(dateStr),
+                                background: hasHours ? getCellBg(dateStr) : weekend ? "#00000012" : getCellBg(dateStr),
                                 border: `1px solid ${getCellBorder(dateStr)}`,
                                 cursor: "pointer", position: "relative",
                                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -481,9 +547,32 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {/* Hours input */}
           <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px" }}>
-            <p style={{ fontSize: "10px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "10px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-              {new Date(selectedDate + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+            {/* Day of week header */}
+            <p style={{ fontSize: "18px", fontWeight: 800, color: "var(--text)", letterSpacing: "-0.01em", textTransform: "capitalize", lineHeight: 1.2 }}>
+              {weekdayLong}
             </p>
+            <p style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "14px", marginTop: "2px" }}>
+              {dateFull}
+            </p>
+
+            {/* Jira suggestion banner */}
+            {jiraLoading && (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "10px" }}>
+                <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> Buscando worklogs Jira...
+              </div>
+            )}
+            {!jiraLoading && jiraTotalSeconds > 0 && (
+              <div style={{
+                background: hasManualHours ? "var(--bg)" : "var(--accent)12",
+                border: `1px solid ${hasManualHours ? "var(--border)" : "var(--accent)44"}`,
+                borderRadius: "var(--radius-sm)", padding: "8px 10px", marginBottom: "10px",
+                fontSize: "11px", color: hasManualHours ? "var(--text-dim)" : "var(--accent)",
+                fontFamily: "'DM Mono', monospace",
+              }}>
+                {hasManualHours ? "Jira:" : "Sugerido do Jira:"} <strong>{jiraTotalHours}h</strong> logadas nos cards vinculados
+              </div>
+            )}
+
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <input
                 type="number"
@@ -516,6 +605,29 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
               </button>
             </div>
           </div>
+
+          {/* Jira worklogs breakdown */}
+          {!jiraLoading && jiraWorklogs.length > 0 && (
+            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                <span style={{ color: "var(--accent)", display: "flex" }}><CheckCircle2 size={13} /></span>
+                <span style={{ fontWeight: 700, fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Horas no Jira</span>
+              </div>
+              {jiraWorklogs.map(w => (
+                <a key={w.issueKey} href={w.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid var(--border)", padding: "7px 0", transition: "opacity 0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                  >
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--accent)", flexShrink: 0 }}>{w.issueKey}</span>
+                    <p style={{ fontSize: "11px", color: "var(--text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.issueSummary}</p>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "11px", color: "var(--accent-3)", fontWeight: 700, flexShrink: 0 }}>{w.timeSpent}</span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
 
           {/* Commits */}
           {selectedCommits.length > 0 && (
@@ -592,7 +704,50 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
             </div>
           )}
 
-          {selectedCommits.length === 0 && selectedPRs.length === 0 && !commitsLoading && (
+          {/* Jira card movements */}
+          {(movementsLoading || jiraMovements.length > 0) && (
+            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                <span style={{ color: "var(--accent-2)", display: "flex" }}><ChevronRight size={13} /></span>
+                <span style={{ fontWeight: 700, fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>
+                  Movimentações de Cards
+                </span>
+                {movementsLoading
+                  ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite", marginLeft: "auto" }} />
+                  : <span style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border-light)", borderRadius: "20px", padding: "1px 8px", fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>{jiraMovements.length}</span>
+                }
+              </div>
+              {jiraMovements.map(m => (
+                <a key={m.issueKey} href={m.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                  <div
+                    style={{ borderBottom: "1px solid var(--border)", padding: "8px 0", transition: "opacity 0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--accent)", flexShrink: 0 }}>{m.issueKey}</span>
+                      <ExternalLink size={10} style={{ color: "var(--text-dim)", flexShrink: 0 }} />
+                    </div>
+                    <p style={{ fontSize: "12px", color: "var(--text)", lineHeight: 1.4, marginBottom: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {m.issueSummary}
+                    </p>
+                    {m.movements.map((mv, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "10px", fontFamily: "'DM Mono', monospace", marginTop: "3px" }}>
+                        <span style={{ color: "var(--text-dim)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "3px", padding: "1px 5px" }}>{mv.from}</span>
+                        <span style={{ color: "var(--text-dim)" }}>→</span>
+                        <span style={{ color: "var(--accent-3)", background: "var(--accent-3)15", border: "1px solid var(--accent-3)40", borderRadius: "3px", padding: "1px 5px" }}>{mv.to}</span>
+                        <span style={{ color: "var(--text-dim)", marginLeft: "auto" }}>
+                          {new Date(mv.time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+
+          {selectedCommits.length === 0 && selectedPRs.length === 0 && jiraMovements.length === 0 && !commitsLoading && !movementsLoading && (
             <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px", textAlign: "center" }}>
               <p style={{ fontSize: "12px", color: "var(--text-dim)" }}>Nenhuma atividade encontrada neste dia</p>
             </div>

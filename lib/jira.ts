@@ -15,22 +15,27 @@ export interface JiraIssue {
 }
 
 async function fetchMyBoardProjectKeys(baseUrl: string, auth: string): Promise<string[]> {
-  const res = await fetch(
-    `${baseUrl}/rest/agile/1.0/board?maxResults=50`,
-    {
-      headers: { Authorization: `Basic ${auth}`, Accept: "application/json" },
-      next: { revalidate: 3600 },
-    }
-  );
+  try {
+    const res = await fetch(
+      `${baseUrl}/rest/agile/1.0/board?maxResults=50`,
+      {
+        headers: { Authorization: `Basic ${auth}`, Accept: "application/json" },
+        next: { revalidate: 3600 },
+        signal: AbortSignal.timeout(15000),
+      }
+    );
 
-  if (!res.ok) return [];
+    if (!res.ok) return [];
 
-  const data = await res.json();
-  const keys = (data.values ?? [])
-    .map((b: any) => b.location?.projectKey)
-    .filter(Boolean) as string[];
+    const data = await res.json();
+    const keys = (data.values ?? [])
+      .map((b: any) => b.location?.projectKey)
+      .filter(Boolean) as string[];
 
-  return Array.from(new Set(keys));
+    return Array.from(new Set(keys));
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchTotalJiraIssueCount(): Promise<number> {
@@ -84,6 +89,142 @@ export async function fetchTotalJiraIssueCount(): Promise<number> {
   }
 
   return allIds.size;
+}
+
+export interface JiraWorklogDay {
+  issueKey: string;
+  issueSummary: string;
+  timeSpentSeconds: number;
+  timeSpent: string; // "2h 30m"
+  url: string;
+}
+
+export async function fetchJiraWorklogs(
+  issueKeys: string[],
+  date: string // YYYY-MM-DD
+): Promise<JiraWorklogDay[]> {
+  const baseUrl = process.env.JIRA_BASE_URL;
+  const email = process.env.JIRA_EMAIL;
+  const token = process.env.JIRA_API_TOKEN;
+
+  if (!baseUrl || !email || !token || issueKeys.length === 0) return [];
+
+  const auth = Buffer.from(`${email}:${token}`).toString("base64");
+  const headers = { Authorization: `Basic ${auth}`, Accept: "application/json" };
+
+  const results: JiraWorklogDay[] = [];
+
+  await Promise.all(
+    issueKeys.map(async (key) => {
+      try {
+      const [issueRes, worklogRes] = await Promise.all([
+        fetch(`${baseUrl}/rest/api/3/issue/${key}?fields=summary`, { headers, signal: AbortSignal.timeout(15000) }),
+        fetch(`${baseUrl}/rest/api/3/issue/${key}/worklog`, { headers, signal: AbortSignal.timeout(15000) }),
+      ]);
+
+      if (!issueRes.ok || !worklogRes.ok) return;
+
+      const [issueData, worklogData] = await Promise.all([
+        issueRes.json(),
+        worklogRes.json(),
+      ]);
+
+      const summary: string = issueData.fields?.summary ?? key;
+      let totalSeconds = 0;
+
+      for (const entry of worklogData.worklogs ?? []) {
+        const entryDate = (entry.started ?? "").slice(0, 10);
+        const isMe = entry.author?.emailAddress === email;
+        if (entryDate === date && isMe) {
+          totalSeconds += entry.timeSpentSeconds ?? 0;
+        }
+      }
+
+      if (totalSeconds > 0) {
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const timeSpent = h > 0 && m > 0 ? `${h}h ${m}m` : h > 0 ? `${h}h` : `${m}m`;
+        results.push({ issueKey: key, issueSummary: summary, timeSpentSeconds: totalSeconds, timeSpent, url: `${baseUrl}/browse/${key}` });
+      }
+      } catch { /* skip issues that timeout or fail */ }
+    })
+  );
+
+  return results.sort((a, b) => b.timeSpentSeconds - a.timeSpentSeconds);
+}
+
+export interface JiraCardMovement {
+  issueKey: string;
+  issueSummary: string;
+  url: string;
+  movements: { from: string; to: string; time: string }[];
+}
+
+export async function fetchJiraCardMovements(date: string): Promise<JiraCardMovement[]> {
+  const baseUrl = process.env.JIRA_BASE_URL;
+  const email = process.env.JIRA_EMAIL;
+  const token = process.env.JIRA_API_TOKEN;
+
+  if (!baseUrl || !email || !token) return [];
+
+  const auth = Buffer.from(`${email}:${token}`).toString("base64");
+  const headers = { Authorization: `Basic ${auth}`, Accept: "application/json" };
+
+  const nextDate = new Date(date + "T12:00:00");
+  nextDate.setDate(nextDate.getDate() + 1);
+  const nextDateStr = nextDate.toISOString().slice(0, 10);
+
+  const jql = `status changed by currentUser() AFTER "${date}" BEFORE "${nextDateStr}"`;
+
+  try {
+    // Use api/2 with expand=changelog — response has changelog.histories[]
+    const res = await fetch(
+      `${baseUrl}/rest/api/2/search?jql=${encodeURIComponent(jql)}&expand=changelog&fields=summary,project&maxResults=50`,
+      { headers, signal: AbortSignal.timeout(15000) }
+    );
+
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    const results: JiraCardMovement[] = [];
+
+    for (const issue of data.issues ?? []) {
+      const isScout = (issue.fields?.project?.name ?? "").toLowerCase().includes("scout");
+      const movements: JiraCardMovement["movements"] = [];
+
+      for (const history of issue.changelog?.histories ?? []) {
+        if ((history.created ?? "").slice(0, 10) !== date) continue;
+
+        for (const item of history.items ?? []) {
+          if (item.field !== "status") continue;
+
+          const toStatus = (item.toString ?? "").toLowerCase();
+
+          // Scout board: only count moves TO "dev ok"
+          if (isScout && toStatus !== "dev ok") continue;
+
+          movements.push({
+            from: item.fromString ?? "?",
+            to: item.toString ?? "?",
+            time: history.created,
+          });
+        }
+      }
+
+      if (movements.length > 0) {
+        results.push({
+          issueKey: issue.key,
+          issueSummary: issue.fields?.summary ?? issue.key,
+          url: `${baseUrl}/browse/${issue.key}`,
+          movements,
+        });
+      }
+    }
+
+    return results;
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchMyJiraIssues(): Promise<JiraIssue[]> {
