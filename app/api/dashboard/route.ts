@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { fetchMyJiraIssues } from "@/lib/jira";
 import { fetchMyBitbucketPRs } from "@/lib/bitbucket";
