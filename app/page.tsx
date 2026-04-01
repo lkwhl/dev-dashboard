@@ -482,8 +482,11 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
         </div>
       </div>
 
-      {/* Calendar — full width */}
-      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "24px", marginBottom: "20px" }}>
+      {/* Two-column layout: calendar left, detail right */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: "20px" }}>
+      <div>
+      {/* Calendar */}
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "24px" }}>
         {commitsLoading && (
           <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-muted)", fontSize: "16px", fontFamily: "'DM Mono', monospace", marginBottom: "14px" }}>
             <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
@@ -642,9 +645,9 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
           );
         })()}
       </div>
-
-      {/* Detail panel — full width below calendar */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "16px" }}>
+      </div>
+      {/* Right column: detail cards */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px", alignSelf: "start", position: "sticky", top: "20px" }}>
         {/* Hours input */}
         <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px" }}>
           <p style={{ fontSize: "24px", fontWeight: 800, color: "var(--text)", letterSpacing: "-0.01em", textTransform: "capitalize", lineHeight: 1.2 }}>
@@ -812,6 +815,7 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
             <p style={{ fontSize: "17px", color: "var(--text-dim)" }}>Nenhuma atividade encontrada neste dia</p>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
@@ -1268,7 +1272,7 @@ export default function Dashboard() {
       )}
 
       {/* Main content */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: "20px", padding: "20px 32px 40px", maxWidth: "1400px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: "20px", padding: "20px 32px 40px" }}>
 
         {/* Left column */}
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -1479,7 +1483,7 @@ export default function Dashboard() {
         </div>
 
         {/* Right column — PRs */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px", position: "sticky", top: "20px", alignSelf: "start" }}>
           <Card>
             <SectionTitle icon={<GitPullRequest size={15} />} title="PRs Abertos" count={data?.prs.filter(p => p.state === "OPEN").length} />
             {loading ? (
