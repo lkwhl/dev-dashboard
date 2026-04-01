@@ -9,7 +9,7 @@ import {
   RefreshCw, GitPullRequest, AlertCircle, Clock, CheckCircle2,
   Zap, MessageSquare, ChevronRight, ExternalLink, Loader2,
   AlertTriangle, Star, Eye, Code2, Calendar, Send, Bell, Mail,
-  GitCommit
+  GitCommit, ListChecks, Trash2, ChevronUp, ChevronDown, Plus
 } from "lucide-react";
 
 interface Commit {
@@ -48,6 +48,15 @@ interface DashboardData {
   generatedAt: string;
 }
 
+interface TodoItem {
+  id: string;
+  text: string;
+  completed: boolean;
+  completedAt: string | null;
+  createdAt: string;
+  source: "ai" | "user";
+}
+
 const PRIORITY_ORDER: Record<string, number> = {
   Highest: 0, High: 1, Medium: 2, Low: 3, Lowest: 4,
 };
@@ -71,7 +80,7 @@ const STATUS_COLOR: Record<string, string> = {
 function Badge({ text, color, bg }: { text: string; color: string; bg?: string }) {
   return (
     <span style={{
-      fontSize: "10px",
+      fontSize: "13px",
       fontWeight: 600,
       letterSpacing: "0.06em",
       textTransform: "uppercase",
@@ -105,9 +114,9 @@ function SectionTitle({ icon, title, count }: { icon: React.ReactNode; title: st
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
       <span style={{ color: "var(--accent)", display: "flex" }}>{icon}</span>
-      <span style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>{title}</span>
+      <span style={{ fontWeight: 700, fontSize: "17px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>{title}</span>
       {count !== undefined && (
-        <span style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border-light)", borderRadius: "20px", padding: "1px 10px", fontSize: "12px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
+        <span style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border-light)", borderRadius: "20px", padding: "1px 10px", fontSize: "16px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
           {count}
         </span>
       )}
@@ -152,17 +161,17 @@ function IssueRow({ issue }: { issue: JiraIssue }) {
         <div style={{ width: "3px", borderRadius: "2px", alignSelf: "stretch", minHeight: "40px", background: accentColor, flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "11px", color: "var(--accent)", fontWeight: 500 }}>{issue.key}</span>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "14px", color: "var(--accent)", fontWeight: 500 }}>{issue.key}</span>
             <Badge text={issue.status} color={STATUS_COLOR[issue.status] ?? "var(--text-muted)"} />
             {isOverdue && <Badge text="OVERDUE" color="var(--danger)" />}
             {isDueSoon && !isOverdue && <Badge text="DUE SOON" color="var(--warn)" />}
             {crQaLevel === "n3" && <Badge text="CR+QA N3" color="var(--danger)" />}
             {crQaLevel === "n1" && <Badge text="CR+QA N1" color="var(--accent-3)" />}
           </div>
-          <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--text)", lineHeight: 1.4, marginBottom: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <p style={{ fontSize: "18px", fontWeight: 500, color: "var(--text)", lineHeight: 1.4, marginBottom: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {issue.summary}
           </p>
-          <div style={{ display: "flex", gap: "12px", fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "12px", fontSize: "14px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", flexWrap: "wrap" }}>
             <span>{issue.issueType}</span>
             {issue.dueDate && (
               <span style={{ color: isOverdue ? "var(--danger)" : isDueSoon ? "var(--warn)" : "var(--text-muted)" }}>
@@ -195,7 +204,7 @@ function PRRow({ pr }: { pr: BitbucketPR }) {
         <div style={{ width: "3px", borderRadius: "2px", alignSelf: "stretch", minHeight: "36px", background: pr.isAuthor ? "var(--accent)" : "var(--accent-2)", flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "11px", color: "var(--text-muted)" }}>#{pr.id}</span>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "14px", color: "var(--text-muted)" }}>#{pr.id}</span>
             <Badge text={pr.isAuthor ? "Author" : "Reviewer"} color={pr.isAuthor ? "var(--accent)" : "var(--accent-2)"} />
             <Badge
               text={pr.state}
@@ -203,11 +212,11 @@ function PRRow({ pr }: { pr: BitbucketPR }) {
             />
             <Badge text={pr.repo} color="var(--text-muted)" bg="var(--bg)" />
           </div>
-          <p style={{ fontSize: "14px", fontWeight: 500, color: "var(--text)", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <p style={{ fontSize: "18px", fontWeight: 500, color: "var(--text)", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {pr.title}
           </p>
           {pr.commentCount > 0 && (
-            <span style={{ fontSize: "11px", color: "var(--warn)", fontFamily: "'DM Mono', monospace", display: "flex", alignItems: "center", gap: "4px", marginTop: "4px" }}>
+            <span style={{ fontSize: "14px", color: "var(--warn)", fontFamily: "'DM Mono', monospace", display: "flex", alignItems: "center", gap: "4px", marginTop: "4px" }}>
               <MessageSquare size={10} /> {pr.commentCount} comments
             </span>
           )}
@@ -249,7 +258,7 @@ function SummaryItem({ icon, text, color, issueMap, onDismiss, isDismissed }: {
       onMouseLeave={() => setHovered(false)}
     >
       <span style={{ color: isDismissed ? "var(--text-dim)" : color, flexShrink: 0, marginTop: "1px" }}>{icon}</span>
-      <p style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.5, flex: 1, textDecoration: isDismissed ? "line-through" : "none", textDecorationColor: "var(--text-dim)" }}>
+      <p style={{ fontSize: "17px", color: "var(--text)", lineHeight: 1.5, flex: 1, textDecoration: isDismissed ? "line-through" : "none", textDecorationColor: "var(--text-dim)" }}>
         {issueMap ? <LinkedText text={text} issueMap={issueMap} /> : text}
       </p>
       {onDismiss && (hovered || isDismissed) && (
@@ -269,13 +278,14 @@ function SummaryItem({ icon, text, color, issueMap, onDismiss, isDismissed }: {
 }
 
 const MONTHS_SHORT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const MONTHS_LONG = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().slice(0, 10)
-  );
+  const [calView, setCalView] = useState<"year" | "month">("year");
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [hours, setHours] = useState<Record<string, number>>({});
   const [inputHours, setInputHours] = useState<string>("");
   const [commits, setCommits] = useState<Commit[]>([]);
@@ -285,7 +295,6 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
   const [jiraMovements, setJiraMovements] = useState<JiraCardMovement[]>([]);
   const [movementsLoading, setMovementsLoading] = useState(false);
 
-  // Load saved hours from localStorage
   useEffect(() => {
     try {
       const stored = localStorage.getItem("working_hours");
@@ -293,8 +302,6 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
     } catch { /* ignore */ }
   }, []);
 
-  // Sync input field when selected date changes
-  // If no manually saved hours but Jira has worklogs, pre-fill from Jira
   useEffect(() => {
     if (hours[selectedDate] !== undefined) {
       setInputHours(String(hours[selectedDate]));
@@ -306,7 +313,6 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
     }
   }, [selectedDate, hours, jiraWorklogs]);
 
-  // Fetch commits for the selected year
   useEffect(() => {
     setCommitsLoading(true);
     setCommits([]);
@@ -317,12 +323,10 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
       .finally(() => setCommitsLoading(false));
   }, [year]);
 
-  // Fetch Jira worklogs when date changes (only if commits on that day have Jira keys)
   useEffect(() => {
     const commitsOnDay = commits.filter(c => c.dateStr === selectedDate);
     const keys = Array.from(new Set(commitsOnDay.flatMap(c => c.jiraKeys)));
     if (keys.length === 0) { setJiraWorklogs([]); return; }
-
     setJiraLoading(true);
     fetch(`/api/jira-hours?keys=${keys.join(",")}&date=${selectedDate}`)
       .then(r => r.json())
@@ -331,7 +335,6 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
       .finally(() => setJiraLoading(false));
   }, [selectedDate, commits]);
 
-  // Fetch Jira card movements (status changes) for the selected date
   useEffect(() => {
     setMovementsLoading(true);
     setJiraMovements([]);
@@ -357,7 +360,6 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
     return map;
   }, [commits]);
 
-  // PRs authored by the user, grouped by the date they were last updated
   const prsByDate = useMemo(() => {
     const map: Record<string, BitbucketPR[]> = {};
     for (const pr of prs) {
@@ -377,7 +379,7 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
     [hours, year]
   );
 
-  const getDaysInMonth = (month: number) => new Date(year, month + 1, 0).getDate();
+  const getDaysInMonth = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
 
   const getCellBg = (dateStr: string) => {
     const h = hours[dateStr];
@@ -395,74 +397,109 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
     return "var(--border)";
   };
 
-  const selectedCommits = commitsByDate[selectedDate] ?? [];
-  const selectedPRs = prsByDate[selectedDate] ?? [];
-
   const isWeekend = (dateStr: string) => {
     const d = new Date(dateStr + "T12:00:00").getDay();
     return d === 0 || d === 6;
   };
 
+  // Month view navigation
+  const viewYear = parseInt(selectedDate.slice(0, 4));
+  const viewMonth = parseInt(selectedDate.slice(5, 7)) - 1;
+
+  const goPrevMonth = () => {
+    const d = new Date(viewYear, viewMonth - 1, 1);
+    const ny = d.getFullYear(); const nm = d.getMonth();
+    setSelectedDate(`${ny}-${String(nm + 1).padStart(2, "0")}-01`);
+    if (ny !== year) setYear(ny);
+  };
+  const goNextMonth = () => {
+    const d = new Date(viewYear, viewMonth + 1, 1);
+    const ny = d.getFullYear(); const nm = d.getMonth();
+    setSelectedDate(`${ny}-${String(nm + 1).padStart(2, "0")}-01`);
+    if (ny !== year) setYear(ny);
+  };
+
+  const selectedCommits = commitsByDate[selectedDate] ?? [];
+  const selectedPRs = prsByDate[selectedDate] ?? [];
   const jiraTotalSeconds = jiraWorklogs.reduce((s, w) => s + w.timeSpentSeconds, 0);
   const jiraTotalHours = +(jiraTotalSeconds / 3600).toFixed(2);
   const hasManualHours = hours[selectedDate] !== undefined;
-
   const selectedDayDate = new Date(selectedDate + "T12:00:00");
   const weekdayLong = selectedDayDate.toLocaleDateString("pt-BR", { weekday: "long" });
   const dateFull = selectedDayDate.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
 
+  const btnStyle = (active: boolean) => ({
+    padding: "6px 16px", background: active ? "var(--accent)" : "var(--bg-card)",
+    border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+    borderRadius: "var(--radius-sm)", cursor: "pointer", fontSize: "14px",
+    fontFamily: "'Syne', sans-serif", fontWeight: 700,
+    color: active ? "#fff" : "var(--text-muted)", transition: "all 0.15s",
+  });
+
+  const navBtnStyle = {
+    background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
+    padding: "5px 14px", cursor: "pointer", color: "var(--text-muted)", fontSize: "16px",
+    fontFamily: "'DM Mono', monospace",
+  };
+
   return (
     <div style={{ padding: "20px 32px 40px" }}>
-      {/* Year nav + summary */}
+      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ color: "var(--accent)", display: "flex" }}><Clock size={15} /></span>
-          <span style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Working Hours</span>
+          <span style={{ color: "var(--accent)", display: "flex" }}><Clock size={16} /></span>
+          <span style={{ fontWeight: 700, fontSize: "17px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Working Hours</span>
+        </div>
+        {/* View toggle */}
+        <div style={{ display: "flex", gap: "4px" }}>
+          <button style={btnStyle(calView === "year")} onClick={() => setCalView("year")}>Ano</button>
+          <button style={btnStyle(calView === "month")} onClick={() => setCalView("month")}>Mês</button>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "12px" }}>
-          {totalHoursYear > 0 && (
-            <span style={{ fontSize: "13px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
+          {totalHoursYear > 0 && calView === "year" && (
+            <span style={{ fontSize: "16px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
               <span style={{ color: "var(--accent-3)", fontWeight: 700 }}>{totalHoursYear}h</span> em {year}
             </span>
           )}
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <button
-              onClick={() => setYear(y => y - 1)}
-              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "4px 10px", cursor: "pointer", color: "var(--text-muted)", fontSize: "12px", fontFamily: "'DM Mono', monospace" }}
-            >
-              ← {year - 1}
-            </button>
-            <span style={{ fontWeight: 800, fontSize: "16px", minWidth: "48px", textAlign: "center" }}>{year}</span>
-            {year < currentYear && (
-              <button
-                onClick={() => setYear(y => y + 1)}
-                style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "4px 10px", cursor: "pointer", color: "var(--text-muted)", fontSize: "12px", fontFamily: "'DM Mono', monospace" }}
-              >
-                {year + 1} →
-              </button>
-            )}
-          </div>
+          {calView === "year" && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <button onClick={() => setYear(y => y - 1)} style={navBtnStyle}>← {year - 1}</button>
+              <span style={{ fontWeight: 800, fontSize: "21px", minWidth: "52px", textAlign: "center" }}>{year}</span>
+              {year < currentYear && (
+                <button onClick={() => setYear(y => y + 1)} style={navBtnStyle}>{year + 1} →</button>
+              )}
+            </div>
+          )}
+          {calView === "month" && (
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <button onClick={goPrevMonth} style={navBtnStyle}>←</button>
+              <span style={{ fontWeight: 800, fontSize: "21px", minWidth: "200px", textAlign: "center" }}>
+                {MONTHS_LONG[viewMonth]} {viewYear}
+              </span>
+              <button onClick={goNextMonth} style={navBtnStyle}>→</button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Calendar + detail grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: "20px", alignItems: "start" }}>
-        {/* Year calendar */}
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px" }}>
-          {commitsLoading && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-muted)", fontSize: "12px", fontFamily: "'DM Mono', monospace", marginBottom: "14px" }}>
-              <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
-              Carregando commits do Bitbucket...
-            </div>
-          )}
+      {/* Calendar — full width */}
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "24px", marginBottom: "20px" }}>
+        {commitsLoading && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-muted)", fontSize: "16px", fontFamily: "'DM Mono', monospace", marginBottom: "14px" }}>
+            <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+            Carregando commits do Bitbucket...
+          </div>
+        )}
 
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
+        {/* ── YEAR VIEW ── */}
+        {calView === "year" && (
+          <>
+            <table style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}>
               <thead>
                 <tr>
-                  <th style={{ width: "36px" }} />
+                  <th style={{ width: "52px" }} />
                   {Array.from({ length: 31 }, (_, i) => (
-                    <th key={i} style={{ width: "24px", textAlign: "center", fontSize: "9px", color: "var(--text-dim)", fontFamily: "'DM Mono', monospace", padding: "0 1px 8px" }}>
+                    <th key={i} style={{ textAlign: "center", fontSize: "13px", color: "var(--text-dim)", fontFamily: "'DM Mono', monospace", padding: "0 2px 10px" }}>
                       {i + 1}
                     </th>
                   ))}
@@ -470,50 +507,45 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
               </thead>
               <tbody>
                 {Array.from({ length: 12 }, (_, month) => {
-                  const daysInMonth = getDaysInMonth(month);
+                  const daysInMonth = getDaysInMonth(year, month);
                   return (
                     <tr key={month}>
-                      <td style={{ width: "36px", fontSize: "10px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", paddingRight: "8px", paddingBottom: "3px", verticalAlign: "middle" }}>
+                      <td style={{ fontSize: "14px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", paddingRight: "10px", paddingBottom: "4px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                         {MONTHS_SHORT[month]}
                       </td>
                       {Array.from({ length: 31 }, (_, day) => {
-                        if (day >= daysInMonth) return <td key={day} style={{ width: "24px", padding: "1px" }} />;
-
+                        if (day >= daysInMonth) return <td key={day} style={{ padding: "2px" }} />;
                         const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day + 1).padStart(2, "0")}`;
                         const isSelected = dateStr === selectedDate;
                         const hasCommits = (commitsByDate[dateStr]?.length ?? 0) > 0;
                         const hasHours = hours[dateStr] !== undefined && hours[dateStr] > 0;
                         const hoursVal = hours[dateStr] ?? 0;
                         const weekend = isWeekend(dateStr);
-
                         return (
-                          <td key={day} style={{ width: "24px", padding: "1px" }}>
+                          <td key={day} style={{ padding: "2px" }}>
                             <div
                               onClick={() => setSelectedDate(dateStr)}
                               title={`${dateStr}${hoursVal ? ` · ${hoursVal}h` : ""}${hasCommits ? ` · ${commitsByDate[dateStr].length} commits` : ""}`}
                               style={{
-                                width: "22px", height: "22px", borderRadius: "4px",
+                                width: "100%", aspectRatio: "1", borderRadius: "5px",
                                 background: hasHours ? getCellBg(dateStr) : weekend ? "#00000012" : getCellBg(dateStr),
-                                border: `1px solid ${getCellBorder(dateStr)}`,
+                                border: `1.5px solid ${getCellBorder(dateStr)}`,
                                 cursor: "pointer", position: "relative",
                                 display: "flex", alignItems: "center", justifyContent: "center",
-                                boxShadow: isSelected ? "0 0 0 2px var(--accent)40" : "none",
+                                boxShadow: isSelected ? "0 0 0 2px var(--accent)50" : "none",
                                 transition: "opacity 0.1s",
+                                minWidth: "18px", minHeight: "18px",
                               }}
-                              onMouseEnter={e => (e.currentTarget.style.opacity = "0.8")}
+                              onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
                               onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
                             >
                               {hasHours && (
-                                <span style={{ fontSize: "8px", fontFamily: "'DM Mono', monospace", color: "var(--text)", fontWeight: 700, lineHeight: 1, userSelect: "none" }}>
+                                <span style={{ fontSize: "11px", fontFamily: "'DM Mono', monospace", color: "var(--text)", fontWeight: 700, lineHeight: 1, userSelect: "none" }}>
                                   {hoursVal}
                                 </span>
                               )}
                               {hasCommits && (
-                                <div style={{
-                                  position: "absolute", bottom: "2px", right: "2px",
-                                  width: "3px", height: "3px", borderRadius: "50%",
-                                  background: hasHours ? "var(--accent)" : "var(--warn)",
-                                }} />
+                                <div style={{ position: "absolute", bottom: "2px", right: "2px", width: "4px", height: "4px", borderRadius: "50%", background: hasHours ? "var(--accent)" : "var(--warn)" }} />
                               )}
                             </div>
                           </td>
@@ -524,235 +556,422 @@ function WorkingHoursView({ prs }: { prs: BitbucketPR[] }) {
                 })}
               </tbody>
             </table>
-          </div>
-
-          {/* Legend */}
-          <div style={{ display: "flex", gap: "14px", marginTop: "14px", paddingTop: "12px", borderTop: "1px solid var(--border)", flexWrap: "wrap" }}>
-            {[
-              { bg: "var(--bg)", border: "var(--border)", label: "Sem registro" },
-              { bg: "var(--bg)", border: "var(--warn)", label: "Commit s/ horas" },
-              { bg: "#6af7a230", border: "var(--border)", label: "1–4h" },
-              { bg: "#6af7a260", border: "var(--border)", label: "5–7h" },
-              { bg: "#6af7a290", border: "var(--border)", label: "8h+" },
-            ].map((item, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "10px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
-                <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: item.bg, border: `1px solid ${item.border}`, flexShrink: 0 }} />
-                {item.label}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Day detail panel */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {/* Hours input */}
-          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px" }}>
-            {/* Day of week header */}
-            <p style={{ fontSize: "18px", fontWeight: 800, color: "var(--text)", letterSpacing: "-0.01em", textTransform: "capitalize", lineHeight: 1.2 }}>
-              {weekdayLong}
-            </p>
-            <p style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "14px", marginTop: "2px" }}>
-              {dateFull}
-            </p>
-
-            {/* Jira suggestion banner */}
-            {jiraLoading && (
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "10px" }}>
-                <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> Buscando worklogs Jira...
-              </div>
-            )}
-            {!jiraLoading && jiraTotalSeconds > 0 && (
-              <div style={{
-                background: hasManualHours ? "var(--bg)" : "var(--accent)12",
-                border: `1px solid ${hasManualHours ? "var(--border)" : "var(--accent)44"}`,
-                borderRadius: "var(--radius-sm)", padding: "8px 10px", marginBottom: "10px",
-                fontSize: "11px", color: hasManualHours ? "var(--text-dim)" : "var(--accent)",
-                fontFamily: "'DM Mono', monospace",
-              }}>
-                {hasManualHours ? "Jira:" : "Sugerido do Jira:"} <strong>{jiraTotalHours}h</strong> logadas nos cards vinculados
-              </div>
-            )}
-
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <input
-                type="number"
-                min={0}
-                max={24}
-                step={0.5}
-                value={inputHours}
-                onChange={e => setInputHours(e.target.value)}
-                placeholder="0"
-                style={{
-                  width: "60px", padding: "8px", fontFamily: "'DM Mono', monospace",
-                  fontSize: "22px", fontWeight: 800, background: "var(--bg)",
-                  border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
-                  color: "var(--text)", textAlign: "center",
-                }}
-              />
-              <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>horas</span>
-              <button
-                onClick={() => {
-                  const val = parseFloat(inputHours);
-                  if (!isNaN(val) && val >= 0) saveHours(selectedDate, val);
-                }}
-                style={{
-                  marginLeft: "auto", background: "var(--accent)", color: "#fff",
-                  border: "none", borderRadius: "var(--radius-sm)", padding: "8px 14px",
-                  cursor: "pointer", fontSize: "12px", fontFamily: "'Syne', sans-serif", fontWeight: 700,
-                }}
-              >
-                Salvar
-              </button>
-            </div>
-          </div>
-
-          {/* Jira worklogs breakdown */}
-          {!jiraLoading && jiraWorklogs.length > 0 && (
-            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-                <span style={{ color: "var(--accent)", display: "flex" }}><CheckCircle2 size={13} /></span>
-                <span style={{ fontWeight: 700, fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Horas no Jira</span>
-              </div>
-              {jiraWorklogs.map(w => (
-                <a key={w.issueKey} href={w.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid var(--border)", padding: "7px 0", transition: "opacity 0.15s" }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
-                  >
-                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--accent)", flexShrink: 0 }}>{w.issueKey}</span>
-                    <p style={{ fontSize: "11px", color: "var(--text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.issueSummary}</p>
-                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "11px", color: "var(--accent-3)", fontWeight: 700, flexShrink: 0 }}>{w.timeSpent}</span>
-                  </div>
-                </a>
+            {/* Legend */}
+            <div style={{ display: "flex", gap: "16px", marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--border)", flexWrap: "wrap" }}>
+              {[
+                { bg: "var(--bg)", border: "var(--border)", label: "Sem registro" },
+                { bg: "var(--bg)", border: "var(--warn)", label: "Commit s/ horas" },
+                { bg: "#6af7a230", border: "var(--border)", label: "1–4h" },
+                { bg: "#6af7a260", border: "var(--border)", label: "5–7h" },
+                { bg: "#6af7a290", border: "var(--border)", label: "8h+" },
+              ].map((item, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
+                  <div style={{ width: "14px", height: "14px", borderRadius: "3px", background: item.bg, border: `1px solid ${item.border}`, flexShrink: 0 }} />
+                  {item.label}
+                </div>
               ))}
             </div>
-          )}
+          </>
+        )}
 
-          {/* Commits */}
-          {selectedCommits.length > 0 && (
-            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                <span style={{ color: "var(--accent)", display: "flex" }}><GitCommit size={13} /></span>
-                <span style={{ fontWeight: 700, fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Commits</span>
-                <span style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border-light)", borderRadius: "20px", padding: "1px 8px", fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
-                  {selectedCommits.length}
-                </span>
-              </div>
-              <div style={{ maxHeight: "280px", overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}>
-                {selectedCommits.map((c) => (
-                  <a key={c.hash} href={c.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+        {/* ── MONTH VIEW ── */}
+        {calView === "month" && (() => {
+          const daysInMonth = getDaysInMonth(viewYear, viewMonth);
+          const firstDow = new Date(viewYear, viewMonth, 1).getDay();
+          const startPad = firstDow === 0 ? 6 : firstDow - 1; // Mon-first
+          return (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "6px" }}>
+                {WEEKDAYS.map(d => (
+                  <div key={d} style={{ textAlign: "center", fontSize: "15px", fontWeight: 700, color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", padding: "8px 0 12px", letterSpacing: "0.06em" }}>
+                    {d}
+                  </div>
+                ))}
+                {Array.from({ length: startPad }, (_, i) => <div key={`p${i}`} />)}
+                {Array.from({ length: daysInMonth }, (_, day) => {
+                  const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day + 1).padStart(2, "0")}`;
+                  const isSelected = dateStr === selectedDate;
+                  const hasCommits = (commitsByDate[dateStr]?.length ?? 0) > 0;
+                  const hasHours = hours[dateStr] !== undefined && hours[dateStr] > 0;
+                  const hoursVal = hours[dateStr] ?? 0;
+                  const weekend = isWeekend(dateStr);
+                  const isToday = dateStr === new Date().toISOString().slice(0, 10);
+                  return (
                     <div
-                      style={{ borderBottom: "1px solid var(--border)", padding: "8px 0", transition: "opacity 0.15s" }}
+                      key={dateStr}
+                      onClick={() => setSelectedDate(dateStr)}
+                      style={{
+                        minHeight: "80px", borderRadius: "var(--radius-sm)", padding: "10px",
+                        background: hasHours ? getCellBg(dateStr) : weekend ? "#00000008" : "var(--bg)",
+                        border: `1.5px solid ${getCellBorder(dateStr)}`,
+                        cursor: "pointer", position: "relative", transition: "opacity 0.1s",
+                        boxShadow: isSelected ? "0 0 0 2px var(--accent)50" : "none",
+                      }}
                       onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
                       onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
                     >
-                      <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", alignItems: "center", marginBottom: "4px" }}>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--text-dim)" }}>
-                          {c.hash.slice(0, 7)}
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                        <span style={{
+                          fontSize: "17px", fontWeight: isToday ? 800 : 600,
+                          color: isToday ? "var(--accent)" : weekend ? "var(--text-dim)" : "var(--text)",
+                          fontFamily: "'DM Mono', monospace",
+                        }}>
+                          {day + 1}
                         </span>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--accent-2)" }}>
-                          {c.repo}
-                        </span>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--text-dim)", marginLeft: "auto" }}>
-                          {new Date(c.date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                        </span>
+                        {hasHours && (
+                          <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--accent-3)", fontFamily: "'DM Mono', monospace" }}>
+                            {hoursVal}h
+                          </span>
+                        )}
                       </div>
-                      {c.jiraKeys.length > 0 && (
-                        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "4px" }}>
-                          {c.jiraKeys.map(k => <Badge key={k} text={k} color="var(--accent)" />)}
+                      {hasCommits && (
+                        <div style={{ marginTop: "6px", display: "flex", gap: "3px", flexWrap: "wrap" }}>
+                          {Array.from({ length: Math.min(commitsByDate[dateStr].length, 5) }, (_, i) => (
+                            <div key={i} style={{ width: "6px", height: "6px", borderRadius: "50%", background: hasHours ? "var(--accent)" : "var(--warn)" }} />
+                          ))}
+                          {commitsByDate[dateStr].length > 5 && (
+                            <span style={{ fontSize: "12px", color: "var(--text-dim)", fontFamily: "'DM Mono', monospace" }}>+{commitsByDate[dateStr].length - 5}</span>
+                          )}
                         </div>
                       )}
-                      <p style={{ fontSize: "12px", color: "var(--text)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } as React.CSSProperties}>
-                        {c.message.split("\n")[0]}
-                      </p>
                     </div>
-                  </a>
-                ))}
+                  );
+                })}
               </div>
-            </div>
-          )}
+            </>
+          );
+        })()}
+      </div>
 
-          {/* PRs */}
-          {selectedPRs.length > 0 && (
-            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                <span style={{ color: "var(--accent)", display: "flex" }}><GitPullRequest size={13} /></span>
-                <span style={{ fontWeight: 700, fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>PRs</span>
-                <span style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border-light)", borderRadius: "20px", padding: "1px 8px", fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
-                  {selectedPRs.length}
-                </span>
-              </div>
-              {selectedPRs.map(pr => (
-                <a key={`${pr.id}-${pr.repo}`} href={pr.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                  <div
-                    style={{ borderBottom: "1px solid var(--border)", padding: "8px 0", transition: "opacity 0.15s" }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
-                  >
-                    <div style={{ display: "flex", gap: "5px", marginBottom: "4px", alignItems: "center" }}>
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--accent)" }}>#{pr.id}</span>
-                      <Badge text={pr.state} color={pr.state === "OPEN" ? "var(--accent-3)" : "var(--text-muted)"} />
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--text-dim)", marginLeft: "auto" }}>{pr.repo}</span>
-                    </div>
-                    <p style={{ fontSize: "12px", color: "var(--text)", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {pr.title}
-                    </p>
-                  </div>
-                </a>
-              ))}
+      {/* Detail panel — full width below calendar */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "16px" }}>
+        {/* Hours input */}
+        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px" }}>
+          <p style={{ fontSize: "24px", fontWeight: 800, color: "var(--text)", letterSpacing: "-0.01em", textTransform: "capitalize", lineHeight: 1.2 }}>
+            {weekdayLong}
+          </p>
+          <p style={{ fontSize: "15px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "16px", marginTop: "4px" }}>
+            {dateFull}
+          </p>
+          {jiraLoading && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "15px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "10px" }}>
+              <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> Buscando worklogs Jira...
             </div>
           )}
-
-          {/* Jira card movements */}
-          {(movementsLoading || jiraMovements.length > 0) && (
-            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-                <span style={{ color: "var(--accent-2)", display: "flex" }}><ChevronRight size={13} /></span>
-                <span style={{ fontWeight: 700, fontSize: "11px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>
-                  Movimentações de Cards
-                </span>
-                {movementsLoading
-                  ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite", marginLeft: "auto" }} />
-                  : <span style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border-light)", borderRadius: "20px", padding: "1px 8px", fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>{jiraMovements.length}</span>
-                }
-              </div>
-              {jiraMovements.map(m => (
-                <a key={m.issueKey} href={m.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                  <div
-                    style={{ borderBottom: "1px solid var(--border)", padding: "8px 0", transition: "opacity 0.15s" }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "var(--accent)", flexShrink: 0 }}>{m.issueKey}</span>
-                      <ExternalLink size={10} style={{ color: "var(--text-dim)", flexShrink: 0 }} />
-                    </div>
-                    <p style={{ fontSize: "12px", color: "var(--text)", lineHeight: 1.4, marginBottom: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {m.issueSummary}
-                    </p>
-                    {m.movements.map((mv, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "10px", fontFamily: "'DM Mono', monospace", marginTop: "3px" }}>
-                        <span style={{ color: "var(--text-dim)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "3px", padding: "1px 5px" }}>{mv.from}</span>
-                        <span style={{ color: "var(--text-dim)" }}>→</span>
-                        <span style={{ color: "var(--accent-3)", background: "var(--accent-3)15", border: "1px solid var(--accent-3)40", borderRadius: "3px", padding: "1px 5px" }}>{mv.to}</span>
-                        <span style={{ color: "var(--text-dim)", marginLeft: "auto" }}>
-                          {new Date(mv.time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </a>
-              ))}
+          {!jiraLoading && jiraTotalSeconds > 0 && (
+            <div style={{
+              background: hasManualHours ? "var(--bg)" : "var(--accent)12",
+              border: `1px solid ${hasManualHours ? "var(--border)" : "var(--accent)44"}`,
+              borderRadius: "var(--radius-sm)", padding: "8px 12px", marginBottom: "12px",
+              fontSize: "15px", color: hasManualHours ? "var(--text-dim)" : "var(--accent)", fontFamily: "'DM Mono', monospace",
+            }}>
+              {hasManualHours ? "Jira:" : "Sugerido do Jira:"} <strong>{jiraTotalHours}h</strong> logadas nos cards vinculados
             </div>
           )}
-
-          {selectedCommits.length === 0 && selectedPRs.length === 0 && jiraMovements.length === 0 && !commitsLoading && !movementsLoading && (
-            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px", textAlign: "center" }}>
-              <p style={{ fontSize: "12px", color: "var(--text-dim)" }}>Nenhuma atividade encontrada neste dia</p>
-            </div>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <input
+              type="number" min={0} max={24} step={0.5} value={inputHours}
+              onChange={e => setInputHours(e.target.value)} placeholder="0"
+              style={{ width: "72px", padding: "10px", fontFamily: "'DM Mono', monospace", fontSize: "30px", fontWeight: 800, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", color: "var(--text)", textAlign: "center" }}
+            />
+            <span style={{ fontSize: "18px", color: "var(--text-muted)" }}>horas</span>
+            <button
+              onClick={() => { const val = parseFloat(inputHours); if (!isNaN(val) && val >= 0) saveHours(selectedDate, val); }}
+              style={{ marginLeft: "auto", background: "var(--accent)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", padding: "10px 18px", cursor: "pointer", fontSize: "17px", fontFamily: "'Syne', sans-serif", fontWeight: 700 }}
+            >
+              Salvar
+            </button>
+          </div>
         </div>
+
+        {/* Jira worklogs */}
+        {!jiraLoading && jiraWorklogs.length > 0 && (
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+              <span style={{ color: "var(--accent)", display: "flex" }}><CheckCircle2 size={14} /></span>
+              <span style={{ fontWeight: 700, fontSize: "15px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Horas no Jira</span>
+            </div>
+            {jiraWorklogs.map(w => (
+              <a key={w.issueKey} href={w.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid var(--border)", padding: "8px 0", transition: "opacity 0.15s" }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                >
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "14px", color: "var(--accent)", flexShrink: 0 }}>{w.issueKey}</span>
+                  <p style={{ fontSize: "15px", color: "var(--text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.issueSummary}</p>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "15px", color: "var(--accent-3)", fontWeight: 700, flexShrink: 0 }}>{w.timeSpent}</span>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+
+        {/* Commits */}
+        {selectedCommits.length > 0 && (
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+              <span style={{ color: "var(--accent)", display: "flex" }}><GitCommit size={14} /></span>
+              <span style={{ fontWeight: 700, fontSize: "15px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Commits</span>
+              <span style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border-light)", borderRadius: "20px", padding: "1px 10px", fontSize: "15px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>{selectedCommits.length}</span>
+            </div>
+            <div style={{ maxHeight: "300px", overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}>
+              {selectedCommits.map(c => (
+                <a key={c.hash} href={c.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                  <div style={{ borderBottom: "1px solid var(--border)", padding: "10px 0", transition: "opacity 0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                  >
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center", marginBottom: "4px" }}>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "14px", color: "var(--text-dim)" }}>{c.hash.slice(0, 7)}</span>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "14px", color: "var(--accent-2)" }}>{c.repo}</span>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "14px", color: "var(--text-dim)", marginLeft: "auto" }}>
+                        {new Date(c.date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    {c.jiraKeys.length > 0 && (
+                      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "4px" }}>
+                        {c.jiraKeys.map(k => <Badge key={k} text={k} color="var(--accent)" />)}
+                      </div>
+                    )}
+                    <p style={{ fontSize: "16px", color: "var(--text)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } as React.CSSProperties}>
+                      {c.message.split("\n")[0]}
+                    </p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* PRs */}
+        {selectedPRs.length > 0 && (
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+              <span style={{ color: "var(--accent)", display: "flex" }}><GitPullRequest size={14} /></span>
+              <span style={{ fontWeight: 700, fontSize: "15px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>PRs</span>
+              <span style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border-light)", borderRadius: "20px", padding: "1px 10px", fontSize: "15px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>{selectedPRs.length}</span>
+            </div>
+            {selectedPRs.map(pr => (
+              <a key={`${pr.id}-${pr.repo}`} href={pr.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                <div style={{ borderBottom: "1px solid var(--border)", padding: "10px 0", transition: "opacity 0.15s" }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                >
+                  <div style={{ display: "flex", gap: "6px", marginBottom: "4px", alignItems: "center" }}>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "14px", color: "var(--accent)" }}>#{pr.id}</span>
+                    <Badge text={pr.state} color={pr.state === "OPEN" ? "var(--accent-3)" : "var(--text-muted)"} />
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "14px", color: "var(--text-dim)", marginLeft: "auto" }}>{pr.repo}</span>
+                  </div>
+                  <p style={{ fontSize: "17px", color: "var(--text)", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pr.title}</p>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+
+        {/* Jira card movements */}
+        {(movementsLoading || jiraMovements.length > 0) && (
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+              <span style={{ color: "var(--accent-2)", display: "flex" }}><ChevronRight size={14} /></span>
+              <span style={{ fontWeight: 700, fontSize: "15px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>Movimentações</span>
+              {movementsLoading
+                ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite", marginLeft: "auto" }} />
+                : <span style={{ marginLeft: "auto", background: "var(--bg)", border: "1px solid var(--border-light)", borderRadius: "20px", padding: "1px 10px", fontSize: "15px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>{jiraMovements.length}</span>
+              }
+            </div>
+            {jiraMovements.map(m => (
+              <a key={m.issueKey} href={m.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                <div style={{ borderBottom: "1px solid var(--border)", padding: "10px 0", transition: "opacity 0.15s" }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "14px", color: "var(--accent)", flexShrink: 0 }}>{m.issueKey}</span>
+                    <ExternalLink size={11} style={{ color: "var(--text-dim)", flexShrink: 0 }} />
+                  </div>
+                  <p style={{ fontSize: "17px", color: "var(--text)", lineHeight: 1.4, marginBottom: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.issueSummary}</p>
+                  {m.movements.map((mv, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", fontFamily: "'DM Mono', monospace", marginTop: "4px" }}>
+                      <span style={{ color: "var(--text-dim)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "3px", padding: "2px 6px" }}>{mv.from}</span>
+                      <span style={{ color: "var(--text-dim)" }}>→</span>
+                      <span style={{ color: "var(--accent-3)", background: "var(--accent-3)15", border: "1px solid var(--accent-3)40", borderRadius: "3px", padding: "2px 6px" }}>{mv.to}</span>
+                      <span style={{ color: "var(--text-dim)", marginLeft: "auto" }}>
+                        {new Date(mv.time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+
+        {selectedCommits.length === 0 && selectedPRs.length === 0 && jiraMovements.length === 0 && !commitsLoading && !movementsLoading && (
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "24px", textAlign: "center" }}>
+            <p style={{ fontSize: "17px", color: "var(--text-dim)" }}>Nenhuma atividade encontrada neste dia</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TodoView({ todos, onSave, issueMap }: {
+  todos: TodoItem[];
+  onSave: (todos: TodoItem[]) => void;
+  issueMap: Record<string, string>;
+}) {
+  const [newText, setNewText] = useState("");
+
+  const addTodo = () => {
+    if (!newText.trim()) return;
+    const newTodo: TodoItem = {
+      id: Math.random().toString(36).slice(2),
+      text: newText.trim(),
+      completed: false,
+      completedAt: null,
+      createdAt: new Date().toISOString(),
+      source: "user",
+    };
+    onSave([...todos, newTodo]);
+    setNewText("");
+  };
+
+  const deleteTodo = (id: string) => onSave(todos.filter(t => t.id !== id));
+
+  const toggleTodo = (id: string) => {
+    onSave(todos.map(t =>
+      t.id === id
+        ? { ...t, completed: !t.completed, completedAt: !t.completed ? new Date().toISOString() : null }
+        : t
+    ));
+  };
+
+  const moveUp = (index: number) => {
+    if (index === 0) return;
+    const next = [...todos];
+    [next[index - 1], next[index]] = [next[index], next[index - 1]];
+    onSave(next);
+  };
+
+  const moveDown = (index: number) => {
+    if (index === todos.length - 1) return;
+    const next = [...todos];
+    [next[index], next[index + 1]] = [next[index + 1], next[index]];
+    onSave(next);
+  };
+
+  const pending = todos.filter(t => !t.completed).length;
+
+  return (
+    <div style={{ padding: "20px 32px 40px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "20px" }}>
+        <span style={{ color: "var(--accent)", display: "flex" }}><ListChecks size={15} /></span>
+        <span style={{ fontWeight: 700, fontSize: "17px", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)" }}>TODO</span>
+        <span style={{ background: "var(--bg-card)", border: "1px solid var(--border-light)", borderRadius: "20px", padding: "1px 10px", fontSize: "16px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace" }}>
+          {pending} pendente{pending !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {/* Add input */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
+        <input
+          type="text"
+          value={newText}
+          onChange={e => setNewText(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && addTodo()}
+          placeholder="Adicionar novo TODO..."
+          style={{
+            flex: 1, padding: "10px 12px", background: "var(--bg-card)",
+            border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)",
+            color: "var(--text)", fontSize: "17px", fontFamily: "'DM Mono', monospace",
+            outline: "none", transition: "border-color 0.15s",
+          }}
+          onFocus={e => (e.target.style.borderColor = "var(--accent)")}
+          onBlur={e => (e.target.style.borderColor = "var(--border-light)")}
+        />
+        <button
+          onClick={addTodo}
+          disabled={!newText.trim()}
+          style={{
+            display: "flex", alignItems: "center", gap: "6px",
+            background: "var(--accent)", border: "none", borderRadius: "var(--radius-sm)",
+            padding: "10px 16px", color: "#fff", cursor: "pointer", fontSize: "16px",
+            fontFamily: "'Syne', sans-serif", fontWeight: 700,
+            opacity: !newText.trim() ? 0.5 : 1, transition: "opacity 0.15s",
+          }}
+        >
+          <Plus size={14} /> Add
+        </button>
+      </div>
+
+      {/* List */}
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "4px 0" }}>
+        {todos.length === 0 && (
+          <p style={{ padding: "24px", textAlign: "center", color: "var(--text-dim)", fontSize: "17px" }}>
+            Nenhum TODO ainda. O AI briefing irá sugerir itens ao carregar.
+          </p>
+        )}
+        {todos.map((todo, index) => (
+          <div key={todo.id} style={{
+            display: "flex", alignItems: "center", gap: "6px",
+            padding: "10px 14px",
+            borderBottom: index < todos.length - 1 ? "1px solid var(--border)" : "none",
+            opacity: todo.completed ? 0.5 : 1,
+            transition: "opacity 0.2s",
+          }}>
+            {/* Move buttons */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "1px", flexShrink: 0 }}>
+              <button
+                onClick={() => moveUp(index)}
+                disabled={index === 0}
+                style={{ background: "none", border: "none", cursor: index === 0 ? "default" : "pointer", color: index === 0 ? "var(--text-dim)" : "var(--text-muted)", padding: "1px 2px", display: "flex" }}
+              >
+                <ChevronUp size={12} />
+              </button>
+              <button
+                onClick={() => moveDown(index)}
+                disabled={index === todos.length - 1}
+                style={{ background: "none", border: "none", cursor: index === todos.length - 1 ? "default" : "pointer", color: index === todos.length - 1 ? "var(--text-dim)" : "var(--text-muted)", padding: "1px 2px", display: "flex" }}
+              >
+                <ChevronDown size={12} />
+              </button>
+            </div>
+
+            {/* AI badge */}
+            {todo.source === "ai" && (
+              <span style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--accent)", background: "var(--accent)18", padding: "1px 5px", borderRadius: "3px", fontFamily: "'DM Mono', monospace", flexShrink: 0, textTransform: "uppercase" }}>
+                AI
+              </span>
+            )}
+
+            {/* Text */}
+            <p style={{ flex: 1, fontSize: "17px", color: "var(--text)", lineHeight: 1.5, textDecoration: todo.completed ? "line-through" : "none", textDecorationColor: "var(--text-dim)" }}>
+              <LinkedText text={todo.text} issueMap={issueMap} />
+            </p>
+
+            {/* Toggle complete */}
+            <button
+              onClick={() => toggleTodo(todo.id)}
+              title={todo.completed ? "Marcar como pendente" : "Marcar como concluído"}
+              style={{ background: "none", border: "none", cursor: "pointer", color: todo.completed ? "var(--accent-3)" : "var(--text-dim)", padding: "4px", display: "flex", alignItems: "center", flexShrink: 0 }}
+            >
+              <CheckCircle2 size={15} />
+            </button>
+
+            {/* Delete */}
+            <button
+              onClick={() => deleteTodo(todo.id)}
+              title="Remover"
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)", padding: "4px", display: "flex", alignItems: "center", flexShrink: 0, transition: "color 0.15s" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "var(--danger)")}
+              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-dim)")}
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -769,7 +988,8 @@ export default function Dashboard() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [dismissedItems, setDismissedItems] = useState<Set<string>>(new Set());
   const [totalCards, setTotalCards] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "working-hours">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "working-hours" | "todo">("dashboard");
+  const [todos, setTodos] = useState<TodoItem[]>([]);
 
   // Load dismissed items from localStorage, scoped to the current data snapshot
   useEffect(() => {
@@ -799,6 +1019,56 @@ export default function Dashboard() {
       return next;
     });
   }, [data?.generatedAt]);
+
+  // Load todos from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("todo_list");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setTodos(parsed.items ?? []);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Sync topPriorities + overdue from AI briefing into todo list when data refreshes
+  useEffect(() => {
+    if (!data?.summary || !data.generatedAt) return;
+    try {
+      const stored = localStorage.getItem("todo_list");
+      const parsed = stored ? JSON.parse(stored) : { items: [], aiSyncedAt: null };
+      if (parsed.aiSyncedAt === data.generatedAt) return;
+      const aiTexts = [
+        ...(data.summary.topPriorities ?? []),
+        ...(data.summary.overdue ?? []),
+      ];
+      const existingTexts = new Set((parsed.items as TodoItem[]).map((t: TodoItem) => t.text));
+      const newItems: TodoItem[] = aiTexts
+        .filter(text => !existingTexts.has(text))
+        .map(text => ({
+          id: Math.random().toString(36).slice(2),
+          text,
+          completed: false,
+          completedAt: null,
+          createdAt: new Date().toISOString(),
+          source: "ai" as const,
+        }));
+      const updatedItems = [...(parsed.items as TodoItem[]), ...newItems];
+      const newStored = { items: updatedItems, aiSyncedAt: data.generatedAt };
+      localStorage.setItem("todo_list", JSON.stringify(newStored));
+      setTodos(updatedItems);
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.generatedAt]);
+
+  const saveTodos = useCallback((newTodos: TodoItem[]) => {
+    setTodos(newTodos);
+    try {
+      const stored = localStorage.getItem("todo_list");
+      const parsed = stored ? JSON.parse(stored) : {};
+      localStorage.setItem("todo_list", JSON.stringify({ ...parsed, items: newTodos }));
+    } catch { /* ignore */ }
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -875,6 +1145,9 @@ export default function Dashboard() {
     (data?.issues ?? []).map((i) => [i.key, i.url])
   );
 
+  const today = new Date().toISOString().slice(0, 10);
+  const todosCompletedToday = todos.filter(t => t.completedAt?.slice(0, 10) === today).length;
+
   return (
     <div style={{ minHeight: "100vh", position: "relative", zIndex: 1 }}>
       {/* Header */}
@@ -886,15 +1159,15 @@ export default function Dashboard() {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
             <Code2 size={18} style={{ color: "var(--accent)" }} />
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "11px", color: "var(--text-muted)", letterSpacing: "0.1em" }}>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "14px", color: "var(--text-muted)", letterSpacing: "0.1em" }}>
               DEV DASHBOARD
             </span>
           </div>
-          <h1 style={{ fontSize: "26px", fontWeight: 800, letterSpacing: "-0.02em" }}>
+          <h1 style={{ fontSize: "34px", fontWeight: 800, letterSpacing: "-0.02em" }}>
             {data?.summary?.greeting ?? "Good day!"}
           </h1>
           {lastRefresh && (
-            <p style={{ fontSize: "11px", color: "var(--text-dim)", marginTop: "4px", fontFamily: "'DM Mono', monospace" }}>
+            <p style={{ fontSize: "14px", color: "var(--text-dim)", marginTop: "4px", fontFamily: "'DM Mono', monospace" }}>
               Updated {lastRefresh.toLocaleTimeString()}
             </p>
           )}
@@ -906,7 +1179,7 @@ export default function Dashboard() {
             display: "flex", alignItems: "center", gap: "8px",
             background: "var(--bg-card)", border: "1px solid var(--border-light)",
             borderRadius: "var(--radius-sm)", padding: "10px 16px",
-            color: "var(--text-muted)", cursor: "pointer", fontSize: "13px", fontFamily: "'Syne', sans-serif",
+            color: "var(--text-muted)", cursor: "pointer", fontSize: "17px", fontFamily: "'Syne', sans-serif",
             transition: "all 0.2s",
           }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
@@ -918,33 +1191,52 @@ export default function Dashboard() {
       </header>
 
       {/* Tab navigation */}
-      <div style={{ display: "flex", padding: "0 32px", borderBottom: "1px solid var(--border)" }}>
-        {(["dashboard", "working-hours"] as const).map((tab) => (
+      <div style={{ display: "flex", padding: "0 32px", borderBottom: "1px solid var(--border)", alignItems: "center" }}>
+        {([
+          { id: "dashboard" as const, label: "Dashboard", icon: <Code2 size={13} /> },
+          { id: "working-hours" as const, label: "Working Hours", icon: <Clock size={13} /> },
+          { id: "todo" as const, label: "TODO", icon: <ListChecks size={13} /> },
+        ]).map(({ id, label, icon }) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
+            key={id}
+            onClick={() => setActiveTab(id)}
             style={{
               display: "flex", alignItems: "center", gap: "6px",
               padding: "10px 16px", background: "none", border: "none",
-              borderBottom: `2px solid ${activeTab === tab ? "var(--accent)" : "transparent"}`,
-              color: activeTab === tab ? "var(--accent)" : "var(--text-muted)",
-              cursor: "pointer", fontSize: "12px", fontFamily: "'Syne', sans-serif", fontWeight: 700,
+              borderBottom: `2px solid ${activeTab === id ? "var(--accent)" : "transparent"}`,
+              color: activeTab === id ? "var(--accent)" : "var(--text-muted)",
+              cursor: "pointer", fontSize: "16px", fontFamily: "'Syne', sans-serif", fontWeight: 700,
               letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: "-1px",
               transition: "color 0.15s",
             }}
           >
-            {tab === "dashboard" ? <><Code2 size={13} /> Dashboard</> : <><Clock size={13} /> Working Hours</>}
+            {icon} {label}
           </button>
         ))}
+        {todosCompletedToday > 0 && (
+          <div style={{
+            marginLeft: "auto", display: "flex", alignItems: "center", gap: "5px",
+            fontSize: "14px", color: "var(--accent-3)", fontFamily: "'DM Mono', monospace",
+            background: "var(--accent-3)15", border: "1px solid var(--accent-3)40",
+            borderRadius: "20px", padding: "3px 10px",
+          }}>
+            <CheckCircle2 size={11} />
+            {todosCompletedToday} feito{todosCompletedToday !== 1 ? "s" : ""} hoje
+          </div>
+        )}
       </div>
 
       {activeTab === "working-hours" && (
         <WorkingHoursView prs={data?.prs ?? []} />
       )}
 
+      {activeTab === "todo" && (
+        <TodoView todos={todos} onSave={saveTodos} issueMap={issueMap} />
+      )}
+
       {activeTab === "dashboard" && <>
       {error && (
-        <div style={{ margin: "16px 32px", padding: "12px 16px", background: "#f76a6a18", border: "1px solid #f76a6a44", borderRadius: "var(--radius-sm)", color: "#f76a6a", fontSize: "13px", fontFamily: "'DM Mono', monospace" }}>
+        <div style={{ margin: "16px 32px", padding: "12px 16px", background: "#f76a6a18", border: "1px solid #f76a6a44", borderRadius: "var(--radius-sm)", color: "#f76a6a", fontSize: "17px", fontFamily: "'DM Mono', monospace" }}>
           ⚠ {error}
         </div>
       )}
@@ -964,10 +1256,10 @@ export default function Dashboard() {
               borderRadius: i === 0 ? "var(--radius) 0 0 var(--radius)" : i === arr.length - 1 ? "0 var(--radius) var(--radius) 0" : "0",
               display: "flex", flexDirection: "column", gap: "6px",
             }}>
-              <span style={{ display: "flex", alignItems: "center", gap: "6px", color: stat.color, fontSize: "11px", fontFamily: "'DM Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: "6px", color: stat.color, fontSize: "14px", fontFamily: "'DM Mono', monospace", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                 {stat.icon} {stat.label}
               </span>
-              <span style={{ fontSize: "28px", fontWeight: 800, color: (stat.value ?? 0) > 0 ? stat.color : "var(--text-dim)" }}>
+              <span style={{ fontSize: "36px", fontWeight: 800, color: (stat.value ?? 0) > 0 ? stat.color : "var(--text-dim)" }}>
                 {stat.value ?? "—"}
               </span>
             </div>
@@ -987,13 +1279,13 @@ export default function Dashboard() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <Mail size={16} style={{ color: "var(--accent)", flexShrink: 0 }} />
-                  <p style={{ fontSize: "13px", color: "var(--text-muted)", lineHeight: 1.4 }}>
+                  <p style={{ fontSize: "17px", color: "var(--text-muted)", lineHeight: 1.4 }}>
                     Connect Gmail so the AI can prioritize your emails alongside Jira and PRs.
                   </p>
                 </div>
                 <a href="/api/auth/google" style={{
                   flexShrink: 0, background: "var(--accent)", color: "#fff", textDecoration: "none",
-                  padding: "8px 16px", borderRadius: "var(--radius-sm)", fontSize: "12px",
+                  padding: "8px 16px", borderRadius: "var(--radius-sm)", fontSize: "16px",
                   fontFamily: "'Syne', sans-serif", fontWeight: 600, whiteSpace: "nowrap",
                 }}>
                   Connect Gmail
@@ -1009,7 +1301,7 @@ export default function Dashboard() {
               <div style={{ display: "flex", flexDirection: "column" }}>
                 {data.summary.topPriorities.length > 0 && (
                   <div style={{ marginBottom: "8px" }}>
-                    <p style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "6px", letterSpacing: "0.06em" }}>TODAY'S FOCUS</p>
+                    <p style={{ fontSize: "14px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "6px", letterSpacing: "0.06em" }}>TODAY'S FOCUS</p>
                     {data.summary.topPriorities.map((p, i) => (
                       <SummaryItem key={i} icon={<ChevronRight size={14} />} text={p} color="var(--accent)" issueMap={issueMap}
                         onDismiss={() => dismissItem(p)} isDismissed={dismissedItems.has(p)} />
@@ -1018,7 +1310,7 @@ export default function Dashboard() {
                 )}
                 {data.summary.overdue.length > 0 && (
                   <div style={{ marginBottom: "8px" }}>
-                    <p style={{ fontSize: "11px", color: "var(--danger)", fontFamily: "'DM Mono', monospace", marginBottom: "6px", letterSpacing: "0.06em" }}>OVERDUE / DUE TODAY</p>
+                    <p style={{ fontSize: "14px", color: "var(--danger)", fontFamily: "'DM Mono', monospace", marginBottom: "6px", letterSpacing: "0.06em" }}>OVERDUE / DUE TODAY</p>
                     {data.summary.overdue.map((p, i) => (
                       <SummaryItem key={i} icon={<AlertTriangle size={14} />} text={p} color="var(--danger)" issueMap={issueMap}
                         onDismiss={() => dismissItem(p)} isDismissed={dismissedItems.has(p)} />
@@ -1027,7 +1319,7 @@ export default function Dashboard() {
                 )}
                 {data.summary.blockers.length > 0 && (
                   <div style={{ marginBottom: "8px" }}>
-                    <p style={{ fontSize: "11px", color: "var(--warn)", fontFamily: "'DM Mono', monospace", marginBottom: "6px", letterSpacing: "0.06em" }}>BLOCKERS</p>
+                    <p style={{ fontSize: "14px", color: "var(--warn)", fontFamily: "'DM Mono', monospace", marginBottom: "6px", letterSpacing: "0.06em" }}>BLOCKERS</p>
                     {data.summary.blockers.map((p, i) => (
                       <SummaryItem key={i} icon={<AlertCircle size={14} />} text={p} color="var(--warn)" issueMap={issueMap}
                         onDismiss={() => dismissItem(p)} isDismissed={dismissedItems.has(p)} />
@@ -1036,7 +1328,7 @@ export default function Dashboard() {
                 )}
                 {data.summary.prActions.length > 0 && (
                   <div style={{ marginBottom: "8px" }}>
-                    <p style={{ fontSize: "11px", color: "var(--accent-3)", fontFamily: "'DM Mono', monospace", marginBottom: "6px", letterSpacing: "0.06em" }}>PR ACTIONS NEEDED</p>
+                    <p style={{ fontSize: "14px", color: "var(--accent-3)", fontFamily: "'DM Mono', monospace", marginBottom: "6px", letterSpacing: "0.06em" }}>PR ACTIONS NEEDED</p>
                     {data.summary.prActions.map((p, i) => (
                       <SummaryItem key={i} icon={<GitPullRequest size={14} />} text={p} color="var(--accent-3)" issueMap={issueMap}
                         onDismiss={() => dismissItem(p)} isDismissed={dismissedItems.has(p)} />
@@ -1045,7 +1337,7 @@ export default function Dashboard() {
                 )}
                 {data.summary.waitingOnOthers && data.summary.waitingOnOthers.length > 0 && (
                   <div style={{ marginBottom: "8px" }}>
-                    <p style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "6px", letterSpacing: "0.06em" }}>WAITING ON OTHERS</p>
+                    <p style={{ fontSize: "14px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "6px", letterSpacing: "0.06em" }}>WAITING ON OTHERS</p>
                     {data.summary.waitingOnOthers.map((p, i) => (
                       <SummaryItem key={i} icon={<Clock size={14} />} text={p} color="var(--text-muted)" issueMap={issueMap}
                         onDismiss={() => dismissItem(p)} isDismissed={dismissedItems.has(p)} />
@@ -1054,7 +1346,7 @@ export default function Dashboard() {
                 )}
                 {data.summary.insight && (
                   <div style={{ marginTop: "8px", padding: "12px", background: "var(--accent-glow)", border: "1px solid var(--accent)33", borderRadius: "var(--radius-sm)" }}>
-                    <p style={{ fontSize: "12px", color: "var(--accent)", fontStyle: "italic", lineHeight: 1.5 }}>💡 {data.summary.insight}</p>
+                    <p style={{ fontSize: "16px", color: "var(--accent)", fontStyle: "italic", lineHeight: 1.5 }}>💡 {data.summary.insight}</p>
                   </div>
                 )}
               </div>
@@ -1066,14 +1358,14 @@ export default function Dashboard() {
             <Card>
               <SectionTitle icon={<Mail size={15} />} title="Gmail Briefing" count={data.emails.length} />
               {data.emails.length === 0 ? (
-                <p style={{ color: "var(--text-dim)", fontSize: "14px", padding: "12px 0", textAlign: "center" }}>No unread emails in the last 24h</p>
+                <p style={{ color: "var(--text-dim)", fontSize: "18px", padding: "12px 0", textAlign: "center" }}>No unread emails in the last 24h</p>
               ) : (
                 <div>
                   {data.summary?.urgentEmails && data.summary.urgentEmails.length > 0 && (
                     <div style={{ marginBottom: "12px", padding: "10px 12px", background: "rgba(232, 53, 106, 0.06)", border: "1px solid var(--accent-2)33", borderRadius: "var(--radius-sm)" }}>
-                      <p style={{ fontSize: "11px", color: "var(--accent-2)", fontFamily: "'DM Mono', monospace", marginBottom: "6px", letterSpacing: "0.06em" }}>AI: READ ASAP</p>
+                      <p style={{ fontSize: "14px", color: "var(--accent-2)", fontFamily: "'DM Mono', monospace", marginBottom: "6px", letterSpacing: "0.06em" }}>AI: READ ASAP</p>
                       {data.summary.urgentEmails.map((item, i) => (
-                        <p key={i} style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.5, padding: "4px 0", borderBottom: i < data.summary!.urgentEmails.length - 1 ? "1px solid var(--border)" : "none" }}>
+                        <p key={i} style={{ fontSize: "17px", color: "var(--text)", lineHeight: 1.5, padding: "4px 0", borderBottom: i < data.summary!.urgentEmails.length - 1 ? "1px solid var(--border)" : "none" }}>
                           {item}
                         </p>
                       ))}
@@ -1085,17 +1377,17 @@ export default function Dashboard() {
                       <div style={{ width: "3px", borderRadius: "2px", alignSelf: "stretch", minHeight: "36px", background: "var(--accent-2)", flexShrink: 0 }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px", flexWrap: "wrap" }}>
-                          <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--text)", fontFamily: "'DM Mono', monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "220px" }}>
+                          <span style={{ fontSize: "16px", fontWeight: 600, color: "var(--text)", fontFamily: "'DM Mono', monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "220px" }}>
                             {email.from.replace(/<.*>/, "").trim() || email.from}
                           </span>
-                          <span style={{ fontSize: "10px", color: "var(--text-dim)", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap", marginLeft: "auto" }}>
+                          <span style={{ fontSize: "13px", color: "var(--text-dim)", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap", marginLeft: "auto" }}>
                             {new Date(email.date).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
-                        <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", lineHeight: 1.4, marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <p style={{ fontSize: "17px", fontWeight: 600, color: "var(--text)", lineHeight: 1.4, marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {email.subject}
                         </p>
-                        <p style={{ fontSize: "12px", color: "var(--text-muted)", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <p style={{ fontSize: "16px", color: "var(--text-muted)", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {email.snippet}
                         </p>
                       </div>
@@ -1115,7 +1407,7 @@ export default function Dashboard() {
             <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
               {projects.map((p) => (
                 <button key={p} onClick={() => setActiveProject(p)} style={{
-                  padding: "5px 12px", borderRadius: "20px", fontSize: "12px", fontFamily: "'Syne', sans-serif",
+                  padding: "5px 12px", borderRadius: "20px", fontSize: "16px", fontFamily: "'Syne', sans-serif",
                   cursor: "pointer", border: "1px solid",
                   borderColor: activeProject === p ? "var(--accent)" : "var(--border-light)",
                   background: activeProject === p ? "var(--accent-glow)" : "transparent",
@@ -1132,7 +1424,7 @@ export default function Dashboard() {
                 <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Loading issues...
               </div>
             ) : sortedIssues.length === 0 ? (
-              <p style={{ color: "var(--text-dim)", fontSize: "14px", padding: "20px 0", textAlign: "center" }}>No open issues 🎉</p>
+              <p style={{ color: "var(--text-dim)", fontSize: "18px", padding: "20px 0", textAlign: "center" }}>No open issues 🎉</p>
             ) : (
               sortedIssues.map((issue) => <IssueRow key={issue.id} issue={issue} />)
             )}
@@ -1141,7 +1433,7 @@ export default function Dashboard() {
           {/* Google Chat Parser */}
           <Card>
             <SectionTitle icon={<MessageSquare size={15} />} title="Google Chat Parser" />
-            <p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "12px", lineHeight: 1.5 }}>
+            <p style={{ fontSize: "16px", color: "var(--text-muted)", marginBottom: "12px", lineHeight: 1.5 }}>
               Paste your morning messages below. AI will extract all action items for you.
             </p>
             <textarea
@@ -1150,7 +1442,7 @@ export default function Dashboard() {
               placeholder="Paste Google Chat messages here..."
               style={{
                 width: "100%", minHeight: "140px", background: "var(--bg)", border: "1px solid var(--border-light)",
-                borderRadius: "var(--radius-sm)", padding: "12px", color: "var(--text)", fontSize: "13px",
+                borderRadius: "var(--radius-sm)", padding: "12px", color: "var(--text)", fontSize: "17px",
                 fontFamily: "'DM Mono', monospace", resize: "vertical", outline: "none", lineHeight: 1.5,
                 transition: "border-color 0.15s",
               }}
@@ -1163,7 +1455,7 @@ export default function Dashboard() {
               style={{
                 display: "flex", alignItems: "center", gap: "8px", marginTop: "10px",
                 background: "var(--accent)", border: "none", borderRadius: "var(--radius-sm)",
-                padding: "10px 18px", color: "#fff", cursor: "pointer", fontSize: "13px",
+                padding: "10px 18px", color: "#fff", cursor: "pointer", fontSize: "17px",
                 fontFamily: "'Syne', sans-serif", fontWeight: 600, opacity: chatLoading || !chatInput.trim() ? 0.5 : 1,
                 transition: "opacity 0.15s",
               }}
@@ -1174,11 +1466,11 @@ export default function Dashboard() {
 
             {chatActions.length > 0 && (
               <div style={{ marginTop: "16px" }}>
-                <p style={{ fontSize: "11px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "8px", letterSpacing: "0.06em" }}>EXTRACTED ACTIONS</p>
+                <p style={{ fontSize: "14px", color: "var(--text-muted)", fontFamily: "'DM Mono', monospace", marginBottom: "8px", letterSpacing: "0.06em" }}>EXTRACTED ACTIONS</p>
                 {chatActions.map((action, i) => (
                   <div key={i} style={{ display: "flex", gap: "10px", padding: "8px 0", borderBottom: "1px solid var(--border)", alignItems: "flex-start" }}>
-                    <span style={{ color: "var(--accent-3)", fontFamily: "'DM Mono', monospace", fontSize: "11px", flexShrink: 0, marginTop: "2px" }}>{String(i + 1).padStart(2, "0")}</span>
-                    <p style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.5 }}>{action}</p>
+                    <span style={{ color: "var(--accent-3)", fontFamily: "'DM Mono', monospace", fontSize: "14px", flexShrink: 0, marginTop: "2px" }}>{String(i + 1).padStart(2, "0")}</span>
+                    <p style={{ fontSize: "17px", color: "var(--text)", lineHeight: 1.5 }}>{action}</p>
                   </div>
                 ))}
               </div>
@@ -1195,7 +1487,7 @@ export default function Dashboard() {
                 <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Loading PRs...
               </div>
             ) : !data?.prs.filter(p => p.state === "OPEN").length ? (
-              <p style={{ color: "var(--text-dim)", fontSize: "14px", padding: "20px 0", textAlign: "center" }}>Nenhum PR aberto</p>
+              <p style={{ color: "var(--text-dim)", fontSize: "18px", padding: "20px 0", textAlign: "center" }}>Nenhum PR aberto</p>
             ) : (
               <div style={{ maxHeight: "252px", overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}>
                 {data.prs.filter(p => p.state === "OPEN").map((pr) => <PRRow key={`${pr.id}-${pr.repo}`} pr={pr} />)}
@@ -1209,20 +1501,20 @@ export default function Dashboard() {
               <SectionTitle icon={<AlertTriangle size={15} />} title="Config Issues" />
               {data.errors.jira && (
                 <div style={{ marginBottom: "8px" }}>
-                  <p style={{ fontSize: "11px", color: "var(--warn)", fontFamily: "'DM Mono', monospace", marginBottom: "4px" }}>JIRA</p>
-                  <p style={{ fontSize: "12px", color: "var(--text-muted)", lineHeight: 1.5 }}>{data.errors.jira}</p>
+                  <p style={{ fontSize: "14px", color: "var(--warn)", fontFamily: "'DM Mono', monospace", marginBottom: "4px" }}>JIRA</p>
+                  <p style={{ fontSize: "16px", color: "var(--text-muted)", lineHeight: 1.5 }}>{data.errors.jira}</p>
                 </div>
               )}
               {data.errors.bitbucket && (
                 <div style={{ marginBottom: "8px" }}>
-                  <p style={{ fontSize: "11px", color: "var(--warn)", fontFamily: "'DM Mono', monospace", marginBottom: "4px" }}>BITBUCKET</p>
-                  <p style={{ fontSize: "12px", color: "var(--text-muted)", lineHeight: 1.5 }}>{data.errors.bitbucket}</p>
+                  <p style={{ fontSize: "14px", color: "var(--warn)", fontFamily: "'DM Mono', monospace", marginBottom: "4px" }}>BITBUCKET</p>
+                  <p style={{ fontSize: "16px", color: "var(--text-muted)", lineHeight: 1.5 }}>{data.errors.bitbucket}</p>
                 </div>
               )}
               {data.errors.gmail && (
                 <div>
-                  <p style={{ fontSize: "11px", color: "var(--warn)", fontFamily: "'DM Mono', monospace", marginBottom: "4px" }}>GMAIL</p>
-                  <p style={{ fontSize: "12px", color: "var(--text-muted)", lineHeight: 1.5 }}>{data.errors.gmail}</p>
+                  <p style={{ fontSize: "14px", color: "var(--warn)", fontFamily: "'DM Mono', monospace", marginBottom: "4px" }}>GMAIL</p>
+                  <p style={{ fontSize: "16px", color: "var(--text-muted)", lineHeight: 1.5 }}>{data.errors.gmail}</p>
                 </div>
               )}
             </Card>
@@ -1238,7 +1530,7 @@ export default function Dashboard() {
               <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 padding: "10px 0", borderBottom: "1px solid var(--border)", textDecoration: "none",
-                color: "var(--text-muted)", fontSize: "13px", transition: "color 0.15s",
+                color: "var(--text-muted)", fontSize: "17px", transition: "color 0.15s",
               }}
                 onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
                 onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}
